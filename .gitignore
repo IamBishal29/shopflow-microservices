@@ -1,1 +1,9 @@
-node_modules/\ndist/\n.env
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+.claude/settings.local.json
+*.log
+.DS_Store
