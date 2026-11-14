@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { NewOrder, Order, PageRequest } from './order';
+import { orderCreatedEvent } from './order-events';
 import { OrderNotFoundError, OrderTotalTooLargeError } from './order.errors';
 import { OrdersRepository } from './orders.repository';
 
@@ -25,7 +27,11 @@ export class OrdersService {
     if (totalCents > MAX_TOTAL_CENTS) {
       throw new OrderTotalTooLargeError(MAX_TOTAL_CENTS);
     }
-    return this.orders.create({ ...command, totalCents });
+    // Placeholder until the gateway forwards a request correlation ID (#15).
+    const correlationId = randomUUID();
+    return this.orders.create({ ...command, totalCents }, (order) =>
+      orderCreatedEvent(order, correlationId),
+    );
   }
 
   async findById(id: string): Promise<Order> {

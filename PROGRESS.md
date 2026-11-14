@@ -2,10 +2,10 @@
 
 ## Current
 - Milestone: M2 Event backbone
-- Issue: #8 event contracts, PR #39 open (targets main)
-- Branch: feat/8-event-contracts (done; waiting for merge)
-- Next step: Syed merges PR #39, then `/next-task` picks up #9 (transactional outbox in
-  order-service: outbox table + relay publishing order.created.v1).
+- Issue: #9 transactional outbox, PR #40 open (targets main)
+- Branch: feat/9-transactional-outbox (done; waiting for merge)
+- Next step: Syed merges PR #40, then `/next-task` picks up #10 (payment-service
+  consuming order.created.v1 and publishing payment results through its own outbox).
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -37,6 +37,9 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - #8 contracts: zod schemas for order.created / payment.succeeded / payment.failed v1,
   TOPICS + dlqTopic, parseEvent -> ContractViolationError (poison messages), tolerant
   reader, fixtures (PR #39, learning note 06)
+- #9 outbox: outbox table (partial index), order + event in one transaction, OutboxRelay
+  (SKIP LOCKED, acks=all, backoff 1-30 s, graceful stop); verified live incl. Kafka
+  outage and recovery (PR #40, learning note 07)
 
 ## Decisions waiting for Syed
 - None
@@ -50,6 +53,8 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - kafkajs is unmaintained; prints TimeoutNegativeWarning on Node 26 (harmless). Swap to
   @confluentinc/kafka-javascript once it ships Node 26 prebuilts (only libs/kafka changes).
 - Git Bash on Windows: prefix docker exec commands with MSYS_NO_PATHCONV=1.
+- Outbox: published rows are never deleted yet (cleanup job = future work); correlationId
+  is a random UUID per order until #15.
 - Known limitation: unit prices come from the client (no catalogue, PRD out of scope);
   customerId comes from the body until JWT (#16).
 
@@ -61,4 +66,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-14: #4 orders API (PRs #35, #36 merged)
 - 2026-11-14: #5 problem details filter (PR #37 merged)
 - 2026-11-14: #7 Kafka backbone (PR #38 merged)
-- 2026-11-14: #8 event contracts, PR #39
+- 2026-11-14: #8 event contracts (PR #39 merged)
+- 2026-11-14: #9 transactional outbox, PR #40

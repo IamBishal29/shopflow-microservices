@@ -42,3 +42,19 @@ model OrderItem {
   @@index([orderId])
   @@map("order_items")
 }
+
+// Transactional outbox: written in the same transaction as the order, relayed to Kafka by
+// OutboxRelay. id = the event's eventId, so consumers can deduplicate on it.
+model OutboxEvent {
+  id          String    @id @db.Uuid
+  // Kafka message key (orderId): keeps one order's events in one partition, in order.
+  aggregateId String    @map("aggregate_id") @db.Uuid
+  // Versioned event type; also the Kafka topic name (e.g. order.created.v1).
+  type        String
+  // Full event envelope, sent as the message value unchanged.
+  payload     Json      @db.JsonB
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(3)
+
+  @@map("outbox")
+}
