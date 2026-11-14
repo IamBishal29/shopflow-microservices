@@ -26,6 +26,16 @@ describe('validateEnv', () => {
     expect(env.KAFKA_GROUP_ID).toBe('payment-service');
   });
 
+  it('declines above 1000.00 by default and accepts an override', () => {
+    expect(validateEnv(validEnv).PAYMENT_DECLINE_ABOVE_CENTS).toBe(100_000);
+    expect(
+      validateEnv({ ...validEnv, PAYMENT_DECLINE_ABOVE_CENTS: '500' }).PAYMENT_DECLINE_ABOVE_CENTS,
+    ).toBe(500);
+    expect(() => validateEnv({ ...validEnv, PAYMENT_DECLINE_ABOVE_CENTS: '-1' })).toThrow(
+      /PAYMENT_DECLINE_ABOVE_CENTS/,
+    );
+  });
+
   it('drops variables that are not part of the schema', () => {
     const env = validateEnv({ ...validEnv, PATH: '/usr/bin' });
     expect(Object.keys(env)).not.toContain('PATH');

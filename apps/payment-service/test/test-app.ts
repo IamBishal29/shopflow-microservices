@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModuleBuilder } from '@nestjs/testing';
 import { KafkaConsumerService, KafkaProducerService } from '@shopflow/kafka';
+import { OutboxRelay } from '@shopflow/outbox';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 
@@ -9,6 +10,9 @@ export const kafkaFakes = {
   producer: { send: jest.fn(), onModuleInit: jest.fn(), onApplicationShutdown: jest.fn() },
   consumer: { run: jest.fn(), onModuleDestroy: jest.fn() },
 };
+
+/** The outbox relay polls Postgres on a timer; e2e tests check HTTP behaviour only. */
+const outboxRelayFake = { onApplicationBootstrap: jest.fn(), onModuleDestroy: jest.fn() };
 
 /**
  * Boots payment-service's real AppModule with infrastructure swapped out.
@@ -21,7 +25,9 @@ export async function createTestApp(
     .overrideProvider(KafkaProducerService)
     .useValue(kafkaFakes.producer)
     .overrideProvider(KafkaConsumerService)
-    .useValue(kafkaFakes.consumer);
+    .useValue(kafkaFakes.consumer)
+    .overrideProvider(OutboxRelay)
+    .useValue(outboxRelayFake);
   const moduleRef = await configure(builder).compile();
   const app = moduleRef.createNestApplication<INestApplication<App>>();
   await app.init();
