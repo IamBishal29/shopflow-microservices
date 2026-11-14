@@ -1,13 +1,15 @@
 import { Module, ValidationPipe } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_PIPE } from '@nestjs/core';
+import { DatabaseModule } from '@shopflow/database';
 import { KafkaModule } from '@shopflow/kafka';
+import { OutboxModule } from '@shopflow/outbox';
 import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 import { EnvironmentVariables, validateEnv } from './config/env.validation';
 import { HealthModule } from './health/health.module';
 import { OrdersModule } from './orders/orders.module';
-import { OutboxModule } from './outbox/outbox.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { PrismaService } from './prisma/prisma.service';
 
 @Module({
   imports: [
@@ -25,6 +27,8 @@ import { PrismaModule } from './prisma/prisma.module';
       }),
     }),
     PrismaModule,
+    // Shared libs (readiness check, outbox relay) talk to this service's own database.
+    DatabaseModule.forRoot({ client: PrismaService }),
     HealthModule,
     OrdersModule,
     OutboxModule,

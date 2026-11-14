@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { HealthIndicatorResult, HealthIndicatorService } from '@nestjs/terminus';
-import { PrismaService } from '../prisma/prisma.service';
+import { DATABASE, SqlClient } from './sql-client';
 
 const PING_TIMEOUT_MS = 1000;
 
@@ -12,14 +12,14 @@ const PING_TIMEOUT_MS = 1000;
 @Injectable()
 export class DatabaseHealthIndicator {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(DATABASE) private readonly db: SqlClient,
     private readonly indicator: HealthIndicatorService,
   ) {}
 
   async pingCheck(key: string): Promise<HealthIndicatorResult> {
     const check = this.indicator.check(key);
     try {
-      await withTimeout(this.prisma.$queryRaw`SELECT 1`, PING_TIMEOUT_MS);
+      await withTimeout(this.db.$queryRaw`SELECT 1`, PING_TIMEOUT_MS);
       return check.up();
     } catch (error) {
       return check.down({ message: error instanceof Error ? error.message : String(error) });

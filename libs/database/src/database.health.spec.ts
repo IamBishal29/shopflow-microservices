@@ -1,11 +1,11 @@
 import { HealthIndicatorService } from '@nestjs/terminus';
-import { PrismaService } from '../prisma/prisma.service';
 import { DatabaseHealthIndicator } from './database.health';
+import { SqlClient } from './sql-client';
 
 describe('DatabaseHealthIndicator', () => {
   const queryRaw = jest.fn<Promise<unknown>, []>();
-  const prisma = { $queryRaw: queryRaw } as unknown as PrismaService;
-  const indicator = new DatabaseHealthIndicator(prisma, new HealthIndicatorService());
+  const db = { $queryRaw: queryRaw } as unknown as SqlClient;
+  const indicator = new DatabaseHealthIndicator(db, new HealthIndicatorService());
 
   afterEach(() => {
     queryRaw.mockReset();

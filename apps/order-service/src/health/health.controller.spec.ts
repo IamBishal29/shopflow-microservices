@@ -1,6 +1,6 @@
 import { HealthCheckResult, HealthCheckService } from '@nestjs/terminus';
 import { Test } from '@nestjs/testing';
-import { DatabaseHealthIndicator } from './database.health';
+import { DatabaseHealthIndicator } from '@shopflow/database';
 import { HealthController } from './health.controller';
 
 describe('HealthController', () => {

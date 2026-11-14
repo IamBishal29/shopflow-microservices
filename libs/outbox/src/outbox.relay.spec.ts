@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { KafkaProducerService, OutgoingMessage } from '@shopflow/kafka';
-import { PrismaService } from '../prisma/prisma.service';
+import { TransactionalSqlClient } from '@shopflow/database';
 import { OutboxRelay, RELAY } from './outbox.relay';
 
 const row = (id: string, aggregateId: string, type = 'order.created.v1') => ({
@@ -15,7 +15,9 @@ function setup() {
     $queryRaw: jest
       .fn<Promise<ReturnType<typeof row>[]>, [TemplateStringsArray, ...unknown[]]>()
       .mockResolvedValue([]),
-    outboxEvent: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    $executeRaw: jest
+      .fn<Promise<number>, [TemplateStringsArray, ...unknown[]]>()
+      .mockResolvedValue(0),
   };
   const prisma = {
     $transaction: jest.fn((work: (client: typeof tx) => Promise<unknown>) => work(tx)),
@@ -24,7 +26,7 @@ function setup() {
     send: jest.fn<Promise<void>, [string, OutgoingMessage[]]>().mockResolvedValue(undefined),
   };
   const relay = new OutboxRelay(
-    prisma as unknown as PrismaService,
+    prisma as unknown as TransactionalSqlClient,
     producer as unknown as KafkaProducerService,
   );
   return { tx, prisma, producer, relay };
@@ -47,12 +49,11 @@ describe('OutboxRelay', () => {
       { key: 'order-1', value: JSON.stringify({ eventId: 'e-1', type: 'order.created.v1' }) },
       { key: 'order-2', value: JSON.stringify({ eventId: 'e-2', type: 'order.created.v1' }) },
     ]);
-    expect(tx.outboxEvent.updateMany).toHaveBeenCalledWith({
-      where: { id: { in: ['e-1', 'e-2'] } },
-      data: { publishedAt: expect.any(Date) as Date },
-    });
+    const [update, ids] = tx.$executeRaw.mock.calls[0] ?? [];
+    expect(update?.join('?')).toMatch(/UPDATE outbox SET published_at = now\(\) WHERE id = ANY/);
+    expect(ids).toEqual(['e-1', 'e-2']);
     expect(producer.send.mock.invocationCallOrder[0]).toBeLessThan(
-      tx.outboxEvent.updateMany.mock.invocationCallOrder[0] ?? 0,
+      tx.$executeRaw.mock.invocationCallOrder[0] ?? 0,
     );
   });
 
@@ -81,7 +82,7 @@ describe('OutboxRelay', () => {
     const { tx, producer, relay } = setup();
     await expect(relay.publishBatch()).resolves.toBe(0);
     expect(producer.send).not.toHaveBeenCalled();
-    expect(tx.outboxEvent.updateMany).not.toHaveBeenCalled();
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('leaves rows unpublished when Kafka is down, so the next poll sends them again', async () => {
@@ -90,7 +91,7 @@ describe('OutboxRelay', () => {
     producer.send.mockRejectedValue(new Error('ECONNREFUSED'));
 
     await expect(relay.publishBatch()).rejects.toThrow('ECONNREFUSED');
-    expect(tx.outboxEvent.updateMany).not.toHaveBeenCalled();
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('backs off exponentially while Kafka is down and resumes normal polling after', async () => {
@@ -104,7 +105,7 @@ describe('OutboxRelay', () => {
 
     producer.send.mockResolvedValue(undefined);
     await expect(relay.runOnce()).resolves.toBe(RELAY.idleDelayMs);
-    expect(tx.outboxEvent.updateMany).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
   });
 
   it('polls again immediately after a full batch to drain a backlog', async () => {
