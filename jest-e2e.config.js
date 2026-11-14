@@ -6,7 +6,11 @@ module.exports = {
   testMatch: ['<rootDir>/apps/*/test/**/*.e2e-spec.ts'],
   transform: { '^.+\\.ts$': 'ts-jest' },
   testEnvironment: 'node',
-  setupFiles: ['<rootDir>/apps/order-service/test/setup-env.ts'],
+  // Each app's variable names are distinct, so loading every setup file is safe.
+  setupFiles: [
+    '<rootDir>/apps/order-service/test/setup-env.ts',
+    '<rootDir>/apps/payment-service/test/setup-env.ts',
+  ],
   moduleNameMapper: {
     // Generated Prisma client uses ESM-style '.js' specifiers for its .ts files.
     '^(\\.{1,2}/.*)\\.js$': '$1',
