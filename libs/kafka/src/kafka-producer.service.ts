@@ -4,8 +4,9 @@ import { KAFKA_CLIENT } from './kafka.options';
 
 export interface OutgoingMessage {
   /** Partition key. Use the aggregate ID (e.g. orderId) so one aggregate's events stay ordered. */
-  readonly key: string;
-  readonly value: string;
+  readonly key: string | null;
+  /** null only when forwarding an empty message unchanged (retry/DLQ). */
+  readonly value: string | null;
   readonly headers?: IHeaders;
 }
 

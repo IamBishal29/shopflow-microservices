@@ -26,6 +26,15 @@ describe('validateEnv', () => {
     expect(env.KAFKA_GROUP_ID).toBe('payment-service');
   });
 
+  it('defaults the consumer retry policy and rejects out-of-range values', () => {
+    const env = validateEnv(validEnv);
+    expect(env.CONSUMER_MAX_ATTEMPTS).toBe(4);
+    expect(env.CONSUMER_RETRY_BASE_MS).toBe(1_000);
+    expect(() => validateEnv({ ...validEnv, CONSUMER_MAX_ATTEMPTS: '0' })).toThrow(
+      /CONSUMER_MAX_ATTEMPTS/,
+    );
+  });
+
   it('declines above 1000.00 by default and accepts an override', () => {
     expect(validateEnv(validEnv).PAYMENT_DECLINE_ABOVE_CENTS).toBe(100_000);
     expect(
