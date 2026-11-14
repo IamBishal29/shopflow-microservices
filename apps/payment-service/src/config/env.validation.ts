@@ -69,6 +69,13 @@ export class EnvironmentVariables {
   @IsString()
   @Length(1, 64)
   readonly KAFKA_GROUP_ID: string = 'payment-service';
+
+  /** Dummy charge rule: orders above this total (in cents) are declined. Default 1000.00. */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  readonly PAYMENT_DECLINE_ABOVE_CENTS: number = 100_000;
 }
 
 /**

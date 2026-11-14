@@ -10,12 +10,12 @@ dead-letter topics, API gateway, and observability.
 - Decisions (ADRs): [docs/decisions](docs/decisions)
 - Learning notes: [docs/learning](docs/learning)
 
-| Service              | Status     | Responsibility                                       |
-| -------------------- | ---------- | ---------------------------------------------------- |
-| order-service        | working    | Orders REST API, Postgres (Prisma), outbox publisher |
-| payment-service      | scaffolded | Consumes `order.created`, simulates a charge         |
-| notification-service | M2         | Consumes payment results, sends notifications        |
-| api-gateway          | M3         | JWT auth, routing, rate limiting, correlation ID     |
+| Service              | Status  | Responsibility                                       |
+| -------------------- | ------- | ---------------------------------------------------- |
+| order-service        | working | Orders REST API, Postgres (Prisma), outbox publisher |
+| payment-service      | working | Consumes `order.created`, simulates a charge         |
+| notification-service | M2      | Consumes payment results, sends notifications        |
+| api-gateway          | M3      | JWT auth, routing, rate limiting, correlation ID     |
 
 ## Quick start
 

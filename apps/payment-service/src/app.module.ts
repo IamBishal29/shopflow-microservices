@@ -2,14 +2,16 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DatabaseModule } from '@shopflow/database';
 import { KafkaModule } from '@shopflow/kafka';
+import { OutboxModule } from '@shopflow/outbox';
 import { EnvironmentVariables, validateEnv } from './config/env.validation';
 import { HealthModule } from './health/health.module';
+import { PaymentsModule } from './payments/payments.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PrismaService } from './prisma/prisma.service';
 
 /**
- * payment-service reacts to events; its only HTTP surface is health. The consumer, the
- * PaymentsService and the outbox relay are added in #10.
+ * payment-service reacts to events; its only HTTP surface is health.
+ * order.created.v1 -> PaymentsService -> payments + outbox rows -> relay -> payment.*.v1
  */
 @Module({
   imports: [
@@ -27,9 +29,11 @@ import { PrismaService } from './prisma/prisma.service';
       }),
     }),
     PrismaModule,
-    // Readiness check (and later the outbox relay) run against payments' own database.
+    // Readiness check and outbox relay run against payments' own database.
     DatabaseModule.forRoot({ client: PrismaService }),
+    OutboxModule,
     HealthModule,
+    PaymentsModule,
   ],
 })
 export class AppModule {}
