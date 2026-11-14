@@ -2,9 +2,10 @@
 
 ## Current
 - Milestone: M1 Order service
-- Issue: none in progress
-- Branch: none (kickoff PRs open: chore/kickoff-scaffold, docs/kickoff-docs)
-- Next step: Syed merges both kickoff PRs, then `/next-task` picks up #2 (config module)
+- Issue: #2 config module, PR #32 open for review
+- Branch: feat/2-config-module (done; waiting for merge)
+- Next step: Syed merges PR #32, then `/next-task` picks up #3 (Prisma + Postgres).
+  Start Docker Desktop first; #3 needs `docker compose up -d postgres`.
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -21,6 +22,8 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - Agent kit added (CLAUDE.md, skills, settings)
 - Kickoff: choices made (ADRs 0001-0005), PRD + architecture docs, monorepo scaffold with
   CI, 6 milestones and 28 issues (#2-#29), learning note 00
+- #2 config: @nestjs/config + class-validator env schema, fail fast, no values echoed
+  (PR #32, learning note 01)
 
 ## Decisions waiting for Syed
 - None
@@ -32,3 +35,4 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 ## Log
 - 2026-11-14: agent kit added
 - 2026-11-14: kickoff done, PRs opened
+- 2026-11-14: #2 config module, PR #32

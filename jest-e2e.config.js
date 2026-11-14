@@ -6,6 +6,7 @@ module.exports = {
   testMatch: ['<rootDir>/apps/*/test/**/*.e2e-spec.ts'],
   transform: { '^.+\.ts$': 'ts-jest' },
   testEnvironment: 'node',
+  setupFiles: ['<rootDir>/apps/order-service/test/setup-env.ts'],
   moduleNameMapper: {
     '^@shopflow/contracts(|/.*)$': '<rootDir>/libs/contracts/src/$1',
   },
