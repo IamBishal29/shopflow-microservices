@@ -64,7 +64,7 @@ sequenceDiagram
   O->>O: order -> PAYMENT_FAILED (compensation)
   K->>N: payment.failed.v1
   N->>N: send "payment failed"
-  Note over P,K: Technical errors (not declines) retry with backoff,<br/>then go to the topic's .dlq
+  Note over P,K: Technical errors (not declines) go to the topic's .retry<br/>(backoff + jitter), then to its .dlq (ADR 0006)
 ```
 
 A declined payment is a business outcome and becomes an event. A crash or bug is a
@@ -77,6 +77,7 @@ technical failure: it is retried and, if it keeps failing, parked in the dead-le
 | `order.created.v1`     | `orderId`    | order-service (outbox)    | payment-service                     | v1              |
 | `payment.succeeded.v1` | `orderId`    | payment-service (outbox)  | order-service, notification-service | v1              |
 | `payment.failed.v1`    | `orderId`    | payment-service (outbox)  | order-service, notification-service | v1              |
+| `<topic>.retry`        | original key | the consumer that failed  | same service, group `<group>.retry` | same as source  |
 | `<topic>.dlq`          | original key | the consumer that gave up | operator (Kafka UI)                 | same as source  |
 
 Every message uses the envelope in `libs/contracts`: `eventId`, `type`, `occurredAt`,
