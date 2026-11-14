@@ -1,5 +1,6 @@
 # Local infrastructure. Redis is added by its own issue (M3).
-# Database-per-service: each service gets its own database; order-service owns "orders".
+# Database-per-service: one Postgres server, one database + role per service
+# ("orders" for order-service, "payments" for payment-service, created by postgres-init).
 services:
   postgres:
     image: postgres:18.7-alpine3.24
@@ -17,6 +18,36 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # One-shot, idempotent: creates payment-service's own role and database, and removes the
+  # default "any role may connect" grant, so each service's role can only reach its own DB.
+  # (The image's initdb scripts would only run on an empty volume; this runs every `up`.)
+  postgres-init:
+    image: postgres:18.7-alpine3.24
+    container_name: shopflow-postgres-init
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-shopflow}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-shopflow}
+      ORDERS_DB: ${POSTGRES_DB:-orders}
+      PAYMENTS_DB_PASSWORD: ${PAYMENTS_DB_PASSWORD:-payments}
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        set -e
+        psql -v ON_ERROR_STOP=1 -d postgres -v pw="$$PAYMENTS_DB_PASSWORD" -v orders="$$ORDERS_DB" <<'SQL'
+        SELECT format('CREATE ROLE payments LOGIN PASSWORD %L', :'pw')
+          WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'payments') \gexec
+        SELECT 'CREATE DATABASE payments OWNER payments'
+          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'payments') \gexec
+        REVOKE CONNECT, TEMPORARY ON DATABASE payments FROM PUBLIC;
+        REVOKE CONNECT, TEMPORARY ON DATABASE :"orders" FROM PUBLIC;
+        SQL
+        echo "payments database ready"
 
   # Single-node Kafka in KRaft mode: one process is both broker and controller, no ZooKeeper.
   kafka:
