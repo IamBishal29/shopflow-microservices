@@ -4,10 +4,12 @@ module.exports = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   roots: ['<rootDir>/apps'],
   testMatch: ['<rootDir>/apps/*/test/**/*.e2e-spec.ts'],
-  transform: { '^.+\.ts$': 'ts-jest' },
+  transform: { '^.+\\.ts$': 'ts-jest' },
   testEnvironment: 'node',
   setupFiles: ['<rootDir>/apps/order-service/test/setup-env.ts'],
   moduleNameMapper: {
+    // Generated Prisma client uses ESM-style '.js' specifiers for its .ts files.
+    '^(\\.{1,2}/.*)\\.js$': '$1',
     '^@shopflow/contracts(|/.*)$': '<rootDir>/libs/contracts/src/$1',
   },
 };
