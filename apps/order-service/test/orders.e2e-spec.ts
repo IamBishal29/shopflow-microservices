@@ -1,12 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { AppModule } from '../src/app.module';
 import { NewOrder, Order, PageRequest } from '../src/orders/order';
 import { OrdersRepository } from '../src/orders/orders.repository';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { createTestApp } from './test-app';
 
 /** In-memory stand-in for the Prisma repository; same contract, no database. */
 class InMemoryOrdersRepository {
@@ -47,14 +46,13 @@ describe('Orders API (e2e)', () => {
   let app: INestApplication<App>;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-      .overrideProvider(PrismaService)
-      .useValue({ onModuleInit: jest.fn(), onModuleDestroy: jest.fn() })
-      .overrideProvider(OrdersRepository)
-      .useValue(new InMemoryOrdersRepository())
-      .compile();
-    app = moduleRef.createNestApplication();
-    await app.init();
+    app = await createTestApp((builder) =>
+      builder
+        .overrideProvider(PrismaService)
+        .useValue({ onModuleInit: jest.fn(), onApplicationShutdown: jest.fn() })
+        .overrideProvider(OrdersRepository)
+        .useValue(new InMemoryOrdersRepository()),
+    );
   });
 
   afterAll(async () => {

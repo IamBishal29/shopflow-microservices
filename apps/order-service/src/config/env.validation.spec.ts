@@ -4,6 +4,7 @@ const validEnv = {
   NODE_ENV: 'test',
   ORDER_SERVICE_PORT: '4000',
   ORDER_DATABASE_URL: 'postgresql://user:pw@localhost:5432/orders',
+  KAFKA_BROKERS: 'localhost:9092',
 };
 
 describe('validateEnv', () => {
@@ -15,9 +16,14 @@ describe('validateEnv', () => {
   });
 
   it('applies defaults for optional variables', () => {
-    const env = validateEnv({ ORDER_DATABASE_URL: validEnv.ORDER_DATABASE_URL });
+    const env = validateEnv({
+      ORDER_DATABASE_URL: validEnv.ORDER_DATABASE_URL,
+      KAFKA_BROKERS: validEnv.KAFKA_BROKERS,
+    });
     expect(env.ORDER_SERVICE_PORT).toBe(3001);
     expect(env.NODE_ENV).toBe('development');
+    expect(env.KAFKA_CLIENT_ID).toBe('order-service');
+    expect(env.KAFKA_GROUP_ID).toBe('order-service');
   });
 
   it('drops variables that are not part of the schema', () => {
@@ -51,5 +57,20 @@ describe('validateEnv', () => {
     }
     expect(message).toMatch(/ORDER_DATABASE_URL/);
     expect(message).not.toContain('s3cr3t-pass');
+  });
+
+  it('splits a comma-separated broker list and trims spaces', () => {
+    const env = validateEnv({ ...validEnv, KAFKA_BROKERS: 'kafka-0:9092, kafka-1:9092' });
+    expect(env.KAFKA_BROKERS).toEqual(['kafka-0:9092', 'kafka-1:9092']);
+  });
+
+  it('fails fast when no Kafka broker is configured', () => {
+    expect(() => validateEnv({ ...validEnv, KAFKA_BROKERS: undefined })).toThrow(/KAFKA_BROKERS/);
+  });
+
+  it('rejects a broker without a port', () => {
+    expect(() => validateEnv({ ...validEnv, KAFKA_BROKERS: 'localhost' })).toThrow(
+      /KAFKA_BROKERS entries must be host:port/,
+    );
   });
 });

@@ -1,8 +1,9 @@
 import { Module, ValidationPipe } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_PIPE } from '@nestjs/core';
+import { KafkaModule } from '@shopflow/kafka';
 import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
-import { validateEnv } from './config/env.validation';
+import { EnvironmentVariables, validateEnv } from './config/env.validation';
 import { HealthModule } from './health/health.module';
 import { OrdersModule } from './orders/orders.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -14,6 +15,13 @@ import { PrismaModule } from './prisma/prisma.module';
       cache: true,
       // Real environment variables win over .env, so containers/K8s override local files.
       validate: validateEnv,
+    }),
+    KafkaModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<EnvironmentVariables, true>) => ({
+        brokers: config.get('KAFKA_BROKERS', { infer: true }),
+        clientId: config.get('KAFKA_CLIENT_ID', { infer: true }),
+      }),
     }),
     PrismaModule,
     HealthModule,

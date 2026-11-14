@@ -1,6 +1,17 @@
 import 'reflect-metadata';
-import { Expose, plainToInstance, Type } from 'class-transformer';
-import { IsIn, IsInt, IsString, Matches, Max, Min, validateSync } from 'class-validator';
+import { Expose, plainToInstance, Transform, Type } from 'class-transformer';
+import {
+  ArrayNotEmpty,
+  IsArray,
+  IsIn,
+  IsInt,
+  IsString,
+  Length,
+  Matches,
+  Max,
+  Min,
+  validateSync,
+} from 'class-validator';
 
 export const NODE_ENVS = ['development', 'test', 'production'] as const;
 export type NodeEnv = (typeof NODE_ENVS)[number];
@@ -28,6 +39,36 @@ export class EnvironmentVariables {
     message: 'ORDER_DATABASE_URL must be a postgresql:// connection string',
   })
   readonly ORDER_DATABASE_URL!: string;
+
+  /** Comma-separated host:port list, e.g. "localhost:9092" or "kafka-0:9092,kafka-1:9092". */
+  // `!`: required like the DB URL; a silent localhost default would hide a missing prod setting.
+  @Expose()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string'
+      ? value
+          .split(',')
+          .map((broker) => broker.trim())
+          .filter(Boolean)
+      : value,
+  )
+  @IsArray()
+  @ArrayNotEmpty({ message: 'KAFKA_BROKERS must list at least one broker' })
+  @Matches(/^[A-Za-z0-9.-]+:\d{1,5}$/, {
+    each: true,
+    message: 'KAFKA_BROKERS entries must be host:port',
+  })
+  readonly KAFKA_BROKERS!: string[];
+
+  @Expose()
+  @IsString()
+  @Length(1, 64)
+  readonly KAFKA_CLIENT_ID: string = 'order-service';
+
+  /** Consumer group for the events order-service consumes (payment results, #13). */
+  @Expose()
+  @IsString()
+  @Length(1, 64)
+  readonly KAFKA_GROUP_ID: string = 'order-service';
 }
 
 /**
