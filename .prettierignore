@@ -6,3 +6,4 @@ pnpm-lock.yaml
 CLAUDE.md
 PROGRESS.md
 SETUP-AGENT-KIT.md
+apps/*/src/generated
