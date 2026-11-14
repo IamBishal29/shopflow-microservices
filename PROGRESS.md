@@ -2,11 +2,10 @@
 
 ## Current
 - Milestone: M1 Order service
-- Issue: #3 Prisma + Postgres, split into two stacked PRs
-  - PR #33 (feat/3-prisma-postgres -> main): Prisma, schema, migration, readiness
-  - PR B (feat/3-orders-repository -> feat/3-prisma-postgres): repository, closes #3
-- Next step: Syed merges #33 first (delete its branch so GitHub retargets PR B to main),
-  then PR B. Then `/next-task` picks up #4 (orders REST API).
+- Issue: #4 orders REST API, PR open (targets main)
+- Branch: feat/4-orders-api (done; waiting for merge)
+- Next step: Syed merges PR #35 (lands the #3 repository on main) and then the #4 PR.
+  Then `/next-task` picks up #5 (global exception filter).
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -27,7 +26,9 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   (PR #32, learning note 01)
 - #3 Prisma 7 + pg adapter, orders/order_items with CHECK constraints, custom DB readiness
   check (verified live/ready against real Postgres stop/start), OrdersRepository with
-  domain types (PRs #33 + stacked, learning note 02)
+  domain types (PRs #33, #34, recovery #35, learning note 02)
+- #4 orders API: POST/GET/:id/list, global ValidationPipe via APP_PIPE, server-side totals,
+  bounded inputs; verified against real Postgres (learning note 03)
 
 ## Decisions waiting for Syed
 - None
@@ -37,10 +38,13 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - Commits and PRs carry no Claude attribution lines (Syed's request, 2026-11-14).
 - Local DB: `docker compose up -d postgres`, then `pnpm prisma:deploy` (needs
   ORDER_DATABASE_URL in .env; compose default password is `shopflow`).
-- PRs over ~250 lines get split into stacked PRs (done for #3).
+- No stacked PRs: every PR targets main (#34 landed on a feature branch; fixed by #35).
+- Known limitation: unit prices come from the client (no catalogue, PRD out of scope);
+  customerId comes from the body until JWT (#16).
 
 ## Log
 - 2026-11-14: agent kit added
 - 2026-11-14: kickoff done, PRs opened
 - 2026-11-14: #2 config module, PR #32 (merged)
-- 2026-11-14: #3 Prisma + Postgres, PR #33 + stacked repository PR
+- 2026-11-14: #3 Prisma + Postgres, PRs #33 + #34 (merged), #35 recovery
+- 2026-11-14: #4 orders API
