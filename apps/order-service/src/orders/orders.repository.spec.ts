@@ -25,21 +25,37 @@ const row = {
 
 describe('OrdersRepository', () => {
   const prismaOrder = { create: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() };
-  const repository = new OrdersRepository({ order: prismaOrder } as unknown as PrismaService);
+  const outboxEvent = { create: jest.fn() };
+  const tx = { order: prismaOrder, outboxEvent };
+  const $transaction = jest.fn((work: (client: typeof tx) => Promise<unknown>) => work(tx));
+  const repository = new OrdersRepository({
+    order: prismaOrder,
+    $transaction,
+  } as unknown as PrismaService);
 
-  beforeEach(() => jest.resetAllMocks());
+  const newOrder: NewOrder = {
+    customerId: 'customer-1',
+    currency: 'EUR',
+    totalCents: 2500,
+    items: [{ sku: 'SKU-1', quantity: 2, unitPriceCents: 1250 }],
+  };
+  const event = {
+    eventId: '5d0c2f8a-1b3e-4f6a-8c9d-0e1f2a3b4c01',
+    type: 'order.created.v1' as const,
+    occurredAt: createdAt.toISOString(),
+    correlationId: 'c-1',
+    payload: { orderId },
+  };
 
-  it('creates the order and its items in one nested write', async () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
     prismaOrder.create.mockResolvedValue(row);
-    const newOrder: NewOrder = {
-      customerId: 'customer-1',
-      currency: 'EUR',
-      totalCents: 2500,
-      items: [{ sku: 'SKU-1', quantity: 2, unitPriceCents: 1250 }],
-    };
+  });
 
-    await repository.create(newOrder);
+  it('inserts the order with its items and the outbox row in one transaction', async () => {
+    const created = await repository.create(newOrder, () => event);
 
+    expect($transaction).toHaveBeenCalledTimes(1);
     expect(prismaOrder.create).toHaveBeenCalledWith({
       data: {
         customerId: 'customer-1',
@@ -49,6 +65,21 @@ describe('OrdersRepository', () => {
       },
       include: { items: true },
     });
+    expect(outboxEvent.create).toHaveBeenCalledWith({
+      data: { id: event.eventId, aggregateId: orderId, type: 'order.created.v1', payload: event },
+    });
+    expect(created.id).toBe(orderId);
+  });
+
+  it('builds the event from the saved order, so it carries the database id', async () => {
+    const toEvent = jest.fn().mockReturnValue(event);
+    await repository.create(newOrder, toEvent);
+    expect(toEvent).toHaveBeenCalledWith(expect.objectContaining({ id: orderId }));
+  });
+
+  it('fails the whole create when the outbox insert fails (no order without its event)', async () => {
+    outboxEvent.create.mockRejectedValueOnce(new Error('outbox insert failed'));
+    await expect(repository.create(newOrder, () => event)).rejects.toThrow('outbox insert failed');
   });
 
   it('maps rows to domain orders without leaking database columns', async () => {

@@ -20,7 +20,7 @@ const savedOrder: Order = {
 
 describe('OrdersService', () => {
   const repo = {
-    create: jest.fn<Promise<Order>, [NewOrder]>(),
+    create: jest.fn<Promise<Order>, [NewOrder, (order: Order) => unknown]>(),
     findById: jest.fn<Promise<Order | null>, [string]>(),
     list: jest.fn<Promise<readonly Order[]>, [{ limit: number; offset: number }]>(),
   };
@@ -37,11 +37,25 @@ describe('OrdersService', () => {
       items: savedOrder.items,
     });
 
-    expect(repo.create).toHaveBeenCalledWith({
-      customerId: 'customer-1',
-      currency: 'EUR',
-      items: savedOrder.items,
-      totalCents: 2 * 1250 + 1 * 1200,
+    expect(repo.create).toHaveBeenCalledWith(
+      {
+        customerId: 'customer-1',
+        currency: 'EUR',
+        items: savedOrder.items,
+        totalCents: 2 * 1250 + 1 * 1200,
+      },
+      expect.any(Function),
+    );
+  });
+
+  it('records an order.created.v1 event for the saved order', async () => {
+    repo.create.mockResolvedValue(savedOrder);
+    await service.create({ customerId: 'customer-1', currency: 'EUR', items: savedOrder.items });
+
+    const toEvent = repo.create.mock.calls[0]?.[1];
+    expect(toEvent?.(savedOrder)).toMatchObject({
+      type: 'order.created.v1',
+      payload: { orderId, totalCents: 3700 },
     });
   });
 

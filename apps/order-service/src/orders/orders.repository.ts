@@ -1,33 +1,51 @@
 import { Injectable } from '@nestjs/common';
+import type { EventEnvelope, Topic } from '@shopflow/contracts';
 import type { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NewOrder, Order, PageRequest } from './order';
 
 type OrderRow = Prisma.OrderGetPayload<{ include: { items: true } }>;
+type OutboxEvent = EventEnvelope<Topic, unknown>;
 
 /** Persistence for orders. The only class in order-service that talks to Prisma about orders. */
 @Injectable()
 export class OrdersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Inserts the order and its items atomically (one nested write = one transaction). */
-  async create(order: NewOrder): Promise<Order> {
-    const row = await this.prisma.order.create({
-      data: {
-        customerId: order.customerId,
-        currency: order.currency,
-        totalCents: order.totalCents,
-        items: {
-          create: order.items.map((item) => ({
-            sku: item.sku,
-            quantity: item.quantity,
-            unitPriceCents: item.unitPriceCents,
-          })),
+  /**
+   * Transactional outbox: the order, its items and its event row commit together or not
+   * at all. Kafka is never called here; OutboxRelay publishes the row later.
+   */
+  async create(order: NewOrder, toEvent: (created: Order) => OutboxEvent): Promise<Order> {
+    return this.prisma.$transaction(async (tx) => {
+      const row = await tx.order.create({
+        data: {
+          customerId: order.customerId,
+          currency: order.currency,
+          totalCents: order.totalCents,
+          items: {
+            create: order.items.map((item) => ({
+              sku: item.sku,
+              quantity: item.quantity,
+              unitPriceCents: item.unitPriceCents,
+            })),
+          },
         },
-      },
-      include: { items: true },
+        include: { items: true },
+      });
+      const created = toOrder(row);
+      const event = toEvent(created);
+      await tx.outboxEvent.create({
+        data: {
+          id: event.eventId,
+          aggregateId: created.id,
+          type: event.type,
+          // Envelope is plain JSON data (strings, numbers, arrays), stored as-is.
+          payload: event as unknown as Prisma.InputJsonObject,
+        },
+      });
+      return created;
     });
-    return toOrder(row);
   }
 
   async findById(id: string): Promise<Order | null> {
