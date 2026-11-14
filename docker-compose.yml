@@ -96,10 +96,12 @@ services:
     command:
       - |
         set -e
-        for topic in order.created.v1 payment.succeeded.v1 payment.failed.v1 \
-                     order.created.v1.dlq payment.succeeded.v1.dlq payment.failed.v1.dlq; do
-          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists \
-            --topic "$$topic" --partitions 3 --replication-factor 1
+        # Each event topic gets a .retry topic (non-blocking retries) and a .dlq (parked).
+        for base in order.created.v1 payment.succeeded.v1 payment.failed.v1; do
+          for topic in "$$base" "$$base.retry" "$$base.dlq"; do
+            /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists \
+              --topic "$$topic" --partitions 3 --replication-factor 1
+          done
         done
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --list
 
