@@ -3,10 +3,11 @@
 ## Current
 - Milestone: M2 Event backbone
 - Issue: #10 payment-service, split into #41 -> #42 -> #10 (sequential PRs to main)
-- Current: #41 shared libs, PR #43 open (branch chore/41-shared-db-outbox-libs, done)
-- Next step: Syed merges PR #43, then `/next-task` picks up #42 (payment-service scaffold:
-  `payments` DB + own role via compose init script, Prisma schema with payments + outbox,
-  config, health, scripts/CI for two apps), then #10 (consumer + PaymentsService + outbox).
+- Current: #42 payment-service scaffold, PR #44 open (branch feat/42-payment-service-scaffold)
+- Next step: Syed merges PR #44 (and adds the PAYMENT_* lines to .env.example/.env), then
+  `/next-task` picks up #10: order.created.v1 consumer (thin handler, parseEvent),
+  PaymentsService with a deterministic decline rule, payment row + outbox row in one
+  transaction, OutboxModule wired in payment-service.
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -44,9 +45,15 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - #41 shared libs: libs/database (SqlClient interface, DATABASE token, health check) and
   libs/outbox (relay); order-service rewired, raw-SQL publish mark verified live
   (PR #43, learning note 08)
+- #42 payment-service scaffold: postgres-init job (payments DB + role, CONNECT revoked),
+  payments/outbox schema with CHECKs, config, health; verified isolation and readiness
+  live (PR #44, learning note 09)
 
 ## Decisions waiting for Syed
-- None. Made for #10: shared libs extracted; payments DB = same Postgres, own database
+- Please add to `.env.example` and `.env` (Claude may not read/edit them):
+  `PAYMENT_SERVICE_PORT=3002`,
+  `PAYMENT_DATABASE_URL=postgresql://payments:payments@localhost:5432/payments`.
+- Made for #10: shared libs extracted; payments DB = same Postgres, own database
   and role; payment-service split into 3 sequential PRs.
 
 ## Notes
@@ -60,6 +67,9 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - Git Bash on Windows: prefix docker exec commands with MSYS_NO_PATHCONV=1.
 - Outbox: published rows are never deleted yet (cleanup job = future work); correlationId
   is a random UUID per order until #15.
+- Local DB roles: `payments` role owns `payments`; order-service still uses the compose
+  superuser (own role = follow-up before K8s). New payment migrations: write with
+  `prisma migrate diff` (the payments role has no CREATEDB for a shadow DB).
 - Known limitation: unit prices come from the client (no catalogue, PRD out of scope);
   customerId comes from the body until JWT (#16).
 
@@ -73,4 +83,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-14: #7 Kafka backbone (PR #38 merged)
 - 2026-11-14: #8 event contracts (PR #39 merged)
 - 2026-11-14: #9 transactional outbox (PR #40 merged)
-- 2026-11-14: #10 split into #41/#42/#10 (Syed's choice); #41 shared libs, PR #43
+- 2026-11-14: #10 split into #41/#42/#10 (Syed's choice); #41 shared libs (PR #43 merged)
+- 2026-11-14: #42 payment-service scaffold, PR #44
