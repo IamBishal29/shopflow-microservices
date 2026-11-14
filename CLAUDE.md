@@ -112,9 +112,15 @@ Never read, print or commit `.env`, tokens or keys. Put placeholders in `.env.ex
 
 ## Project facts (filled in by /kickoff)
 - Stack: Node.js LTS + pnpm, NestJS monorepo (Nest CLI), TypeScript strict, PostgreSQL +
-  Prisma, Kafka (KRaft) via KafkaJS / @nestjs/microservices, Redis, Docker Compose,
+  Prisma, Kafka (KRaft) via KafkaJS (directly), Redis, Docker Compose,
   kind + Strimzi, Jest + Supertest + Testcontainers, GitHub Actions.
-- Setup: (kickoff fills in)
-- Run: (kickoff fills in)
-- Test: (kickoff fills in)
-- Lint: (kickoff fills in)
+- Setup: Node 26 (`.nvmrc`), pnpm 12; `pnpm install`; `cp .env.example .env`;
+  `docker compose up -d postgres`. Our code is CommonJS; NestJS 12 is ESM-only and loads via
+  Node `require(esm)`, so Jest runs with `--experimental-vm-modules` (ADR 0001). TypeScript
+  pinned to 6.0 (ts-jest / typescript-eslint not yet on TS 7).
+- Run: `pnpm start:order` (order-service on :3001, `GET /health`).
+- Test: `pnpm test` (unit, `apps/*/src/**/*.spec.ts`), `pnpm test:e2e`
+  (`apps/*/test/*.e2e-spec.ts`).
+- Lint: `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm build`.
+- Kickoff choices: KafkaJS directly (ADR 0002), NestJS gateway (0003), kind (0004),
+  Nest CLI monorepo (0005).
