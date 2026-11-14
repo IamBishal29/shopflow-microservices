@@ -19,18 +19,19 @@ export class PaymentsService {
     this.declineAboveCents = config.get('PAYMENT_DECLINE_ABOVE_CENTS', { infer: true });
   }
 
-  /** Returns the recorded payment, or null if this order was already charged. */
+  /** Returns the recorded payment, or null if this event (or order) was already handled. */
   async handleOrderCreated(event: OrderCreatedV1): Promise<Payment | null> {
     const { orderId, totalCents, currency } = event.payload;
     const decision = decideCharge(totalCents, this.declineAboveCents);
 
     const payment = await this.payments.record(
+      event.eventId,
       { orderId, amountCents: totalCents, currency, ...decision },
       (recorded) => paymentResultEvent(recorded, event.correlationId),
     );
 
     if (payment === null) {
-      this.logger.log(`Order ${orderId} already charged; duplicate event ${event.eventId} skipped`);
+      this.logger.log(`Duplicate event ${event.eventId} for order ${orderId} skipped`);
     } else {
       this.logger.log(`Order ${orderId} payment ${payment.status}`);
     }
