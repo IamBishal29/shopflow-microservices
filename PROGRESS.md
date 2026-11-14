@@ -2,10 +2,10 @@
 
 ## Current
 - Milestone: M1 Order service
-- Issue: #4 orders REST API, PR open (targets main)
-- Branch: feat/4-orders-api (done; waiting for merge)
-- Next step: Syed merges PR #35 (lands the #3 repository on main) and then the #4 PR.
-  Then `/next-task` picks up #5 (global exception filter).
+- Issue: #5 global exception filter, PR open (targets main)
+- Branch: feat/5-problem-details (done; waiting for merge)
+- Next step: Syed merges the #5 PR, then `/next-task` picks up #7 (Kafka KRaft + KafkaJS
+  module). #6 Swagger is deferred to after the interview (not interview-critical).
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -29,6 +29,8 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   domain types (PRs #33, #34, recovery #35, learning note 02)
 - #4 orders API: POST/GET/:id/list, global ValidationPipe via APP_PIPE, server-side totals,
   bounded inputs; verified against real Postgres (learning note 03)
+- #5 errors: DomainError (code, kind, title) in services; global RFC 9457 problem+json
+  filter; 5xx never expose detail; health keeps Terminus 503 body (learning note 04)
 
 ## Decisions waiting for Syed
 - None
@@ -47,4 +49,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-14: kickoff done, PRs opened
 - 2026-11-14: #2 config module, PR #32 (merged)
 - 2026-11-14: #3 Prisma + Postgres, PRs #33 + #34 (merged), #35 recovery
-- 2026-11-14: #4 orders API
+- 2026-11-14: #4 orders API (PRs #35, #36 merged)
+- 2026-11-14: #5 problem details filter
