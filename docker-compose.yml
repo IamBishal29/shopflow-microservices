@@ -1,0 +1,22 @@
+# Local infrastructure. Kafka and Redis are added by their own issues (M2, M3).
+# Database-per-service: each service gets its own database; order-service owns "orders".
+services:
+  postgres:
+    image: postgres:18.7-alpine3.24
+    container_name: shopflow-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-shopflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shopflow}
+      POSTGRES_DB: ${POSTGRES_DB:-orders}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:
