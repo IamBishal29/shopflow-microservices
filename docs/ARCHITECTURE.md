@@ -83,6 +83,13 @@ Every message uses the envelope in `libs/contracts`: `eventId`, `type`, `occurre
 `correlationId`, `payload`. Breaking changes create a new versioned topic (`.v2`) and run
 both side by side during migration.
 
+Payloads (zod schemas and fixtures in `libs/contracts/src`; consumers call `parseEvent`):
+
+- `order.created.v1`: `orderId`, `customerId`, `totalCents`, `currency`,
+  `items[{ sku, quantity, unitPriceCents }]`
+- `payment.succeeded.v1`: `orderId`, `paymentId`, `amountCents`, `currency`
+- `payment.failed.v1`: `orderId`, `reason`, `amountCents`, `currency`
+
 ## Order status
 
 `PENDING` -> `PAID` or `PAYMENT_FAILED`. Transitions only from `PENDING`; a duplicate or
