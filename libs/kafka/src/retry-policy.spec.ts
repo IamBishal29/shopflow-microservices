@@ -1,4 +1,10 @@
-import { backoffDelay, numberHeader, RetryPolicy, routeFailure } from './retry-policy';
+import {
+  backoffDelay,
+  describeError,
+  numberHeader,
+  RetryPolicy,
+  routeFailure,
+} from './retry-policy';
 
 const policy: RetryPolicy = { maxAttempts: 4, baseDelayMs: 1_000, maxDelayMs: 5_000 };
 const maxJitter = () => 0.999_999;
@@ -31,6 +37,16 @@ describe('routeFailure', () => {
 
   it('sends permanent errors to the DLQ without retrying', () => {
     expect(routeFailure(1, true, policy)).toEqual({ to: 'dlq', reason: 'permanent' });
+  });
+});
+
+describe('describeError', () => {
+  it('flattens multi-line messages and bounds their length', () => {
+    const error = new RangeError(`line one\n   line two\n${'x'.repeat(600)}`);
+    const { type, message } = describeError(error);
+    expect(type).toBe('RangeError');
+    expect(message.startsWith('line one line two x')).toBe(true);
+    expect(message).toHaveLength(500);
   });
 });
 

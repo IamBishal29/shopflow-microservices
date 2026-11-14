@@ -72,9 +72,9 @@ export function numberHeader(headers: IHeaders, name: string, fallback: number):
   return text !== '' && Number.isFinite(value) ? value : fallback;
 }
 
-/** Error details for headers: type and a bounded message (headers are not a log sink). */
+/** Error details for headers: type and a one-line, bounded message (not a log sink). */
 export function describeError(error: unknown): { type: string; message: string } {
   const type = error instanceof Error ? error.name : typeof error;
   const message = error instanceof Error ? error.message : String(error);
-  return { type, message: message.slice(0, 500) };
+  return { type, message: message.replace(/\s+/g, ' ').trim().slice(0, 500) };
 }

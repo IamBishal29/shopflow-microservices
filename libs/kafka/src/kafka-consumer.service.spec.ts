@@ -179,6 +179,7 @@ describe('KafkaConsumerService', () => {
     );
     expect(producer.send.mock.calls[0]?.[0]).toBe('order.created.v1.dlq');
     expect(sentHeaders(producer)).toMatchObject({ 'x-retry-attempt': '3' });
+    expect(sentHeaders(producer)).not.toHaveProperty('x-retry-not-before');
     expect(retry.commitOffsets).toHaveBeenCalledWith([
       { topic: 'order.created.v1.retry', partition: 2, offset: '6' },
     ]);

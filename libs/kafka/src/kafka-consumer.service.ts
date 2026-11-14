@@ -149,6 +149,7 @@ export class KafkaConsumerService implements OnModuleDestroy {
         );
       } else {
         headers[H.attempt] = String(attempt);
+        delete headers[H.notBefore]; // left over from the retry topic; meaningless in the DLQ
         await this.producer.send(dlqTopicOf(message.topic), [
           { key: message.key, value: message.value, headers },
         ]);
