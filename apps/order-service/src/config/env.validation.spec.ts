@@ -64,6 +64,12 @@ describe('validateEnv', () => {
     expect(env.KAFKA_BROKERS).toEqual(['kafka-0:9092', 'kafka-1:9092']);
   });
 
+  it('defaults the consumer retry policy', () => {
+    const env = validateEnv(validEnv);
+    expect(env.CONSUMER_MAX_ATTEMPTS).toBe(4);
+    expect(env.CONSUMER_RETRY_BASE_MS).toBe(1_000);
+  });
+
   it('fails fast when no Kafka broker is configured', () => {
     expect(() => validateEnv({ ...validEnv, KAFKA_BROKERS: undefined })).toThrow(/KAFKA_BROKERS/);
   });

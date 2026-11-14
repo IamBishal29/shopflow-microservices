@@ -2,6 +2,13 @@
 export const ORDER_STATUSES = ['PENDING', 'PAID', 'PAYMENT_FAILED'] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
+/**
+ * Statuses a payment result can move an order to. The state machine is
+ * PENDING -> PAID | PAYMENT_FAILED; final states never change (enforced in
+ * OrdersRepository.applyPaymentResult).
+ */
+export type PaymentOutcome = Extract<OrderStatus, 'PAID' | 'PAYMENT_FAILED'>;
+
 export interface OrderItem {
   readonly sku: string;
   readonly quantity: number;

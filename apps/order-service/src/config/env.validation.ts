@@ -69,6 +69,22 @@ export class EnvironmentVariables {
   @IsString()
   @Length(1, 64)
   readonly KAFKA_GROUP_ID: string = 'order-service';
+
+  /** Tries per message (first delivery + retries) before it goes to the DLQ. */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  readonly CONSUMER_MAX_ATTEMPTS: number = 4;
+
+  /** Backoff ceiling for the first retry; doubles per attempt (full jitter, max 30 s). */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(30_000)
+  readonly CONSUMER_RETRY_BASE_MS: number = 1_000;
 }
 
 /**
