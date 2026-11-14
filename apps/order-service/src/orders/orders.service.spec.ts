@@ -1,4 +1,4 @@
-import { NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { OrderNotFoundError, OrderTotalTooLargeError } from './order.errors';
 import { NewOrder, Order } from './order';
 import { OrdersRepository } from './orders.repository';
 import { OrdersService } from './orders.service';
@@ -54,7 +54,7 @@ describe('OrdersService', () => {
 
     await expect(
       service.create({ customerId: 'customer-1', currency: 'EUR', items }),
-    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    ).rejects.toBeInstanceOf(OrderTotalTooLargeError);
     expect(repo.create).not.toHaveBeenCalled();
   });
 
@@ -63,9 +63,9 @@ describe('OrdersService', () => {
     await expect(service.findById(orderId)).resolves.toBe(savedOrder);
   });
 
-  it('throws NotFound for an unknown order id', async () => {
+  it('throws OrderNotFoundError for an unknown order id', async () => {
     repo.findById.mockResolvedValue(null);
-    await expect(service.findById(orderId)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.findById(orderId)).rejects.toBeInstanceOf(OrderNotFoundError);
   });
 
   it('returns a page with the paging parameters echoed back', async () => {

@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { NewOrder, Order, PageRequest } from './order';
+import { OrderNotFoundError, OrderTotalTooLargeError } from './order.errors';
 import { OrdersRepository } from './orders.repository';
 
 /** Postgres INTEGER upper bound; orders.total_cents is INTEGER. */
@@ -22,7 +23,7 @@ export class OrdersService {
       0,
     );
     if (totalCents > MAX_TOTAL_CENTS) {
-      throw new UnprocessableEntityException('Order total exceeds the maximum allowed amount');
+      throw new OrderTotalTooLargeError(MAX_TOTAL_CENTS);
     }
     return this.orders.create({ ...command, totalCents });
   }
@@ -30,7 +31,7 @@ export class OrdersService {
   async findById(id: string): Promise<Order> {
     const order = await this.orders.findById(id);
     if (!order) {
-      throw new NotFoundException(`Order ${id} not found`);
+      throw new OrderNotFoundError(id);
     }
     return order;
   }
