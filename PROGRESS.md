@@ -2,11 +2,10 @@
 
 ## Current
 - Milestone: M2 Event backbone
-- Issue: #12 retries + DLQ, PR #47 open (targets main)
-- Branch: feat/12-retry-topics-dlq (done; waiting for merge)
-- Next step: Syed merges PR #47 (then `docker compose up -d kafka-init` for the .retry
-  topics), then `/next-task` picks up #13 (saga completion: order-service consumes
-  payment.succeeded/failed.v1, PENDING -> PAID / PAYMENT_FAILED, idempotent via claimEvent).
+- Issue: #13 saga completion, PR #48 open (targets main). Day 2 plan complete.
+- Branch: feat/13-saga-completion (done; waiting for merge)
+- Next step: Syed merges PR #48, then `/next-task` picks up Day 3: #15 (api-gateway +
+  correlation ID, milestone M3).
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -59,6 +58,10 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   <topic>.retry (backoff + full jitter, second consumer group) or <topic>.dlq
   (permanent/exhausted); ContractViolationError permanent; verified live: recover,
   exhaust, poison, DLQ replay (PR #47, ADR 0006, learning note 12)
+- #13 saga completion: PaymentResultsConsumer, processed_events in orders DB, atomic
+  PENDING -> PAID | PAYMENT_FAILED (conditional UPDATE); late results ignored, unknown
+  order -> DLQ with claim rolled back; full saga verified live in ~3 s
+  (PR #48, learning note 13)
 
 ## Decisions waiting for Syed
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
@@ -84,6 +87,10 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - processed_events and published outbox rows are never deleted yet (retention job = future).
 - Retry topics lose per-key ordering for retried messages (ADR 0006); #13 must only move
   order status forward from PENDING. DLQ replay = re-publish key/value to the source topic.
+- Order 6ef59cb5… (customer c-42, from #4) stays PENDING forever: created before the
+  outbox existed, so no event. Harmless local test data.
+- Consumer start-with-retry is duplicated in order- and payment-service; move into
+  libs/kafka when a third consumer appears (notification-service, #14).
 - Known limitation: unit prices come from the client (no catalogue, PRD out of scope);
   customerId comes from the body until JWT (#16).
 
@@ -101,4 +108,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-14: #42 payment-service scaffold (PR #44 merged)
 - 2026-11-14: #10 payment consumer (PR #45 merged)
 - 2026-11-14: #11 idempotent consumers (PR #46 merged)
-- 2026-11-14: #12 retry topics + DLQ, PR #47
+- 2026-11-14: #12 retry topics + DLQ (PR #47 merged)
+- 2026-11-14: #13 saga completion, PR #48
