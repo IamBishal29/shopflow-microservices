@@ -80,12 +80,28 @@ describe('Orders API (e2e)', () => {
       expect(JSON.stringify(res.body)).toMatch(/property totalCents should not exist/);
     });
 
-    it('validates nested items', async () => {
+    it('validates nested items and answers with a VALIDATION_FAILED problem', async () => {
       const res = await request(app.getHttpServer())
         .post('/orders')
         .send({ ...validOrder, items: [{ sku: 'SKU-1', quantity: 0, unitPriceCents: 100 }] })
+        .expect(400)
+        .expect('content-type', /application\/problem\+json/);
+      expect(res.body).toMatchObject({
+        type: 'urn:shopflow:problem:validation-failed',
+        status: 400,
+        code: 'VALIDATION_FAILED',
+        instance: '/orders',
+        errors: ['items.0.quantity must not be less than 1'],
+      });
+    });
+
+    it('answers malformed JSON with 400, not 500', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/orders')
+        .set('content-type', 'application/json')
+        .send('{"customerId": ')
         .expect(400);
-      expect(JSON.stringify(res.body)).toMatch(/items\.0\.quantity must not be less than 1/);
+      expect(res.body).toMatchObject({ status: 400, code: 'BAD_REQUEST' });
     });
 
     it('rejects an order without items', async () => {
@@ -111,8 +127,31 @@ describe('Orders API (e2e)', () => {
       expect(res.body).toMatchObject({ id, totalCents: 3700 });
     });
 
-    it('returns 404 for an unknown id', async () => {
-      await request(app.getHttpServer()).get(`/orders/${randomUUID()}`).expect(404);
+    it('returns an ORDER_NOT_FOUND problem for an unknown id, echoing the correlation ID', async () => {
+      const id = randomUUID();
+      const res = await request(app.getHttpServer())
+        .get(`/orders/${id}`)
+        .set('x-correlation-id', 'e2e-123')
+        .expect(404)
+        .expect('content-type', /application\/problem\+json/);
+      expect(res.body).toMatchObject({
+        type: 'urn:shopflow:problem:order-not-found',
+        title: 'Order not found',
+        status: 404,
+        detail: `Order ${id} not found`,
+        instance: `/orders/${id}`,
+        code: 'ORDER_NOT_FOUND',
+        correlationId: 'e2e-123',
+      });
+    });
+
+    it('answers unknown routes with an about:blank problem', async () => {
+      const res = await request(app.getHttpServer()).get('/nope').expect(404);
+      expect(res.body).toMatchObject({
+        type: 'about:blank',
+        title: 'Not Found',
+        code: 'NOT_FOUND',
+      });
     });
 
     it('returns 400 for an id that is not a UUID', async () => {
