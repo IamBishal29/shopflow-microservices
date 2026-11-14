@@ -2,15 +2,16 @@
 
 ## Current
 - Milestone: M2 Event backbone
-- Issue: #9 transactional outbox, PR #40 open (targets main)
-- Branch: feat/9-transactional-outbox (done; waiting for merge)
-- Next step: Syed merges PR #40, then `/next-task` picks up #10 (payment-service
-  consuming order.created.v1 and publishing payment results through its own outbox).
+- Issue: #10 payment-service, split into #41 -> #42 -> #10 (sequential PRs to main)
+- Current: #41 shared libs, PR #43 open (branch chore/41-shared-db-outbox-libs, done)
+- Next step: Syed merges PR #43, then `/next-task` picks up #42 (payment-service scaffold:
+  `payments` DB + own role via compose init script, Prisma schema with payments + outbox,
+  config, health, scripts/CI for two apps), then #10 (consumer + PaymentsService + outbox).
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - Day 1: #2 config, #3 Prisma, #4 orders API, #5 error filter, #7 Kafka + KafkaJS module
-- Day 2: #8 contracts, #9 outbox, #10 payment-service, #11 idempotent consumers,
+- Day 2: #8 contracts, #9 outbox, #41 + #42 + #10 payment-service, #11 idempotent consumers,
   #12 retries + DLQ, #13 saga completion
 - Day 3: #15 gateway + correlation ID, #16 JWT, #17 rate limiting, #19 idempotency keys,
   #29 interview Q&A doc
@@ -40,9 +41,13 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - #9 outbox: outbox table (partial index), order + event in one transaction, OutboxRelay
   (SKIP LOCKED, acks=all, backoff 1-30 s, graceful stop); verified live incl. Kafka
   outage and recovery (PR #40, learning note 07)
+- #41 shared libs: libs/database (SqlClient interface, DATABASE token, health check) and
+  libs/outbox (relay); order-service rewired, raw-SQL publish mark verified live
+  (PR #43, learning note 08)
 
 ## Decisions waiting for Syed
-- None
+- None. Made for #10: shared libs extracted; payments DB = same Postgres, own database
+  and role; payment-service split into 3 sequential PRs.
 
 ## Notes
 - NestJS 12 is ESM-only; we stay CommonJS and rely on Node `require(esm)` (ADR 0001).
@@ -67,4 +72,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-14: #5 problem details filter (PR #37 merged)
 - 2026-11-14: #7 Kafka backbone (PR #38 merged)
 - 2026-11-14: #8 event contracts (PR #39 merged)
-- 2026-11-14: #9 transactional outbox, PR #40
+- 2026-11-14: #9 transactional outbox (PR #40 merged)
+- 2026-11-14: #10 split into #41/#42/#10 (Syed's choice); #41 shared libs, PR #43
