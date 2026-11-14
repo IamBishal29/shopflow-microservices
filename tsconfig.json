@@ -3,8 +3,13 @@
     "target": "es2023",
     "module": "nodenext",
     "moduleResolution": "nodenext",
-    "lib": ["es2023"],
-    "types": ["node", "jest"],
+    "lib": [
+      "es2023"
+    ],
+    "types": [
+      "node",
+      "jest"
+    ],
     "strict": true,
     "noImplicitOverride": true,
     "noUncheckedIndexedAccess": true,
@@ -19,10 +24,17 @@
     "incremental": false,
     "outDir": "./dist",
     "paths": {
-      "@shopflow/contracts": ["./libs/contracts/src"],
-      "@shopflow/contracts/*": ["./libs/contracts/src/*"]
+      "@shopflow/*": [
+        "./libs/*/src"
+      ]
     }
   },
-  "include": ["apps/**/*.ts", "libs/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "apps/**/*.ts",
+    "libs/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
