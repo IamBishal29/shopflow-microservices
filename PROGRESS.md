@@ -2,10 +2,10 @@
 
 ## Current
 - Milestone: M2 Event backbone
-- Issue: #10 payment consumer (part 3 of #41/#42/#10), PR #45 open (targets main)
-- Branch: feat/10-payment-consumer (done; waiting for merge)
-- Next step: Syed merges PR #45, then `/next-task` picks up #11 (idempotent consumers:
-  processed-event table keyed by eventId, written in the handler's transaction).
+- Issue: #11 idempotent consumers, PR #46 open (targets main)
+- Branch: feat/11-idempotent-consumers (done; waiting for merge)
+- Next step: Syed merges PR #46, then `/next-task` picks up #12 (retries with backoff,
+  then dead-letter topic; replaces the poison-message skip in OrderCreatedConsumer).
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -50,6 +50,10 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   start), PaymentsService (decline above PAYMENT_DECLINE_ABOVE_CENTS), payment + result
   event in one transaction, unique order_id = no double charge; verified live incl.
   duplicate replay and poison message (PR #45, learning note 10)
+- #11 idempotent consumers: claimEvent (ON CONFLICT DO NOTHING) in libs/database,
+  processed_events (event_id, consumer) in payments DB, claimed in the payment transaction;
+  verified live by rewinding the consumer group: 9 redeliveries, 0 new payments
+  (PR #46, learning note 11)
 
 ## Decisions waiting for Syed
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
@@ -72,6 +76,7 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - Local DB roles: `payments` role owns `payments`; order-service still uses the compose
   superuser (own role = follow-up before K8s). New payment migrations: write with
   `prisma migrate diff` (the payments role has no CREATEDB for a shadow DB).
+- processed_events and published outbox rows are never deleted yet (retention job = future).
 - Known limitation: unit prices come from the client (no catalogue, PRD out of scope);
   customerId comes from the body until JWT (#16).
 
@@ -87,4 +92,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-14: #9 transactional outbox (PR #40 merged)
 - 2026-11-14: #10 split into #41/#42/#10 (Syed's choice); #41 shared libs (PR #43 merged)
 - 2026-11-14: #42 payment-service scaffold (PR #44 merged)
-- 2026-11-14: #10 payment consumer, PR #45
+- 2026-11-14: #10 payment consumer (PR #45 merged)
+- 2026-11-14: #11 idempotent consumers, PR #46

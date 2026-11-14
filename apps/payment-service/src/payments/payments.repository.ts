@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import type { EventEnvelope, Topic } from '@shopflow/contracts';
+import { claimEvent } from '@shopflow/database';
 import { Prisma, type Payment as PaymentRow } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NewPayment, Payment } from './payment';
 
 type OutboxEvent = EventEnvelope<Topic, unknown>;
+
+/** Name under which this handler records processed events (one service may have many). */
+export const CONSUMER = 'payment-service.order-created';
 
 /** Persistence for payments. The only class in payment-service that talks to Prisma. */
 @Injectable()
@@ -12,16 +16,19 @@ export class PaymentsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Transactional outbox: the payment and its result event commit together or not at all.
-   * Returns null when this order was already charged (unique order_id): a redelivered
-   * order.created.v1 must never charge twice.
+   * One transaction: mark `sourceEventId` processed, insert the payment and its result event
+   * (outbox). Returns null when the event was already processed (idempotent consumer), or
+   * when the order already has a payment (unique order_id, a second line of defense).
+   * Either way nothing is charged twice and the caller can commit the Kafka offset.
    */
   async record(
+    sourceEventId: string,
     payment: NewPayment,
     toEvent: (recorded: Payment) => OutboxEvent,
   ): Promise<Payment | null> {
     try {
       return await this.prisma.$transaction(async (tx) => {
+        if (!(await claimEvent(tx, sourceEventId, CONSUMER))) return null;
         const row = await tx.payment.create({
           data: {
             orderId: payment.orderId,
