@@ -2,10 +2,10 @@
 
 ## Current
 - Milestone: M2 Event backbone
-- Issue: #7 Kafka KRaft + libs/kafka, PR open (targets main)
-- Branch: feat/7-kafka-backbone (done; waiting for merge)
-- Next step: Syed merges the #7 PR, then `/next-task` picks up #8 (event contracts in
-  libs/contracts), then #9 outbox.
+- Issue: #8 event contracts, PR #39 open (targets main)
+- Branch: feat/8-event-contracts (done; waiting for merge)
+- Next step: Syed merges PR #39, then `/next-task` picks up #9 (transactional outbox in
+  order-service: outbox table + relay publishing order.created.v1).
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -33,7 +33,10 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   filter; 5xx never expose detail; health keeps Terminus 503 body (learning note 04)
 - #7 Kafka: apache/kafka 4.4 KRaft + kafka-init topics + kafbat UI in compose; libs/kafka
   (idempotent producer, manual-commit consumer, shutdown ordering); kafkajs kept after
-  Confluent client had no Node 26 build (ADR 0002 amendment, learning note 05)
+  Confluent client had no Node 26 build (ADR 0002 amendment, learning note 05) (PR #38)
+- #8 contracts: zod schemas for order.created / payment.succeeded / payment.failed v1,
+  TOPICS + dlqTopic, parseEvent -> ContractViolationError (poison messages), tolerant
+  reader, fixtures (PR #39, learning note 06)
 
 ## Decisions waiting for Syed
 - None
@@ -57,4 +60,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-14: #3 Prisma + Postgres, PRs #33 + #34 (merged), #35 recovery
 - 2026-11-14: #4 orders API (PRs #35, #36 merged)
 - 2026-11-14: #5 problem details filter (PR #37 merged)
-- 2026-11-14: #7 Kafka backbone
+- 2026-11-14: #7 Kafka backbone (PR #38 merged)
+- 2026-11-14: #8 event contracts, PR #39
