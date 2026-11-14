@@ -1,9 +1,9 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModuleBuilder } from '@nestjs/testing';
 import { KafkaConsumerService, KafkaProducerService } from '@shopflow/kafka';
+import { OutboxRelay } from '@shopflow/outbox';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
-import { OutboxRelay } from '../src/outbox/outbox.relay';
 
 /** Fakes for Kafka so e2e tests never need (or wait for) a broker. */
 export const kafkaFakes = {

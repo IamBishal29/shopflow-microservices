@@ -1,6 +1,12 @@
-import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnApplicationBootstrap,
+  OnModuleDestroy,
+} from '@nestjs/common';
+import { DATABASE, TransactionalSqlClient } from '@shopflow/database';
 import { KafkaProducerService, OutgoingMessage } from '@shopflow/kafka';
-import { PrismaService } from '../prisma/prisma.service';
 
 interface OutboxRow {
   readonly id: string;
@@ -22,6 +28,9 @@ export const RELAY = {
  * Polls the outbox and publishes unpublished rows to Kafka (topic = row.type,
  * key = aggregateId). Delivery is at-least-once: if the process dies after Kafka acked
  * but before the commit, the batch is sent again. Consumers deduplicate on eventId (#11).
+ *
+ * Works with any service whose database has the standard `outbox` table
+ * (id uuid, aggregate_id uuid, type text, payload jsonb, created_at, published_at).
  */
 @Injectable()
 export class OutboxRelay implements OnApplicationBootstrap, OnModuleDestroy {
@@ -32,7 +41,7 @@ export class OutboxRelay implements OnApplicationBootstrap, OnModuleDestroy {
   private failureDelayMs = 0;
 
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(DATABASE) private readonly db: TransactionalSqlClient,
     private readonly producer: KafkaProducerService,
   ) {}
 
@@ -68,7 +77,7 @@ export class OutboxRelay implements OnApplicationBootstrap, OnModuleDestroy {
 
   /** Lock a batch, send it, mark it published; all in one DB transaction. */
   async publishBatch(): Promise<number> {
-    return this.prisma.$transaction(
+    return this.db.$transaction(
       async (tx) => {
         // SKIP LOCKED: another relay instance takes the next rows instead of waiting.
         const rows = await tx.$queryRaw<OutboxRow[]>`
@@ -83,10 +92,9 @@ export class OutboxRelay implements OnApplicationBootstrap, OnModuleDestroy {
         for (const [topic, messages] of groupByTopic(rows)) {
           await this.producer.send(topic, messages);
         }
-        await tx.outboxEvent.updateMany({
-          where: { id: { in: rows.map((row) => row.id) } },
-          data: { publishedAt: new Date() },
-        });
+        const ids = rows.map((row) => row.id);
+        await tx.$executeRaw`
+          UPDATE outbox SET published_at = now() WHERE id = ANY(${ids}::uuid[])`;
         return rows.length;
       },
       { timeout: RELAY.transactionTimeoutMs },
