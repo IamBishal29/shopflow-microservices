@@ -2,12 +2,10 @@
 
 ## Current
 - Milestone: M2 Event backbone
-- Issue: #10 payment-service, split into #41 -> #42 -> #10 (sequential PRs to main)
-- Current: #42 payment-service scaffold, PR #44 open (branch feat/42-payment-service-scaffold)
-- Next step: Syed merges PR #44 (and adds the PAYMENT_* lines to .env.example/.env), then
-  `/next-task` picks up #10: order.created.v1 consumer (thin handler, parseEvent),
-  PaymentsService with a deterministic decline rule, payment row + outbox row in one
-  transaction, OutboxModule wired in payment-service.
+- Issue: #10 payment consumer (part 3 of #41/#42/#10), PR #45 open (targets main)
+- Branch: feat/10-payment-consumer (done; waiting for merge)
+- Next step: Syed merges PR #45, then `/next-task` picks up #11 (idempotent consumers:
+  processed-event table keyed by eventId, written in the handler's transaction).
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -48,6 +46,10 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - #42 payment-service scaffold: postgres-init job (payments DB + role, CONNECT revoked),
   payments/outbox schema with CHECKs, config, health; verified isolation and readiness
   live (PR #44, learning note 09)
+- #10 payment consumer: OrderCreatedConsumer (thin, poison skip until #12, background
+  start), PaymentsService (decline above PAYMENT_DECLINE_ABOVE_CENTS), payment + result
+  event in one transaction, unique order_id = no double charge; verified live incl.
+  duplicate replay and poison message (PR #45, learning note 10)
 
 ## Decisions waiting for Syed
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
@@ -84,4 +86,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-14: #8 event contracts (PR #39 merged)
 - 2026-11-14: #9 transactional outbox (PR #40 merged)
 - 2026-11-14: #10 split into #41/#42/#10 (Syed's choice); #41 shared libs (PR #43 merged)
-- 2026-11-14: #42 payment-service scaffold, PR #44
+- 2026-11-14: #42 payment-service scaffold (PR #44 merged)
+- 2026-11-14: #10 payment consumer, PR #45
