@@ -1,0 +1,8 @@
+dist
+coverage
+node_modules
+pnpm-lock.yaml
+.claude
+CLAUDE.md
+PROGRESS.md
+SETUP-AGENT-KIT.md
