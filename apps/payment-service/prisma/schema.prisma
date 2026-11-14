@@ -1,0 +1,44 @@
+// payment-service database. Owned by payment-service only (database-per-service).
+// It never reads the orders database: everything it needs arrives in order.created.v1.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PaymentStatus {
+  SUCCEEDED
+  FAILED
+}
+
+/// One (simulated) charge per order. The unique orderId makes a redelivered
+/// order.created.v1 unable to charge twice, even before the processed-event table (#11).
+model Payment {
+  id          String        @id @default(uuid()) @db.Uuid
+  orderId     String        @unique @map("order_id") @db.Uuid
+  status      PaymentStatus
+  amountCents Int           @map("amount_cents")
+  currency    String        @db.Char(3)
+  // Why the charge was declined; null when it succeeded (enforced by a CHECK).
+  reason      String?
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@map("payments")
+}
+
+// Standard outbox table (same shape in every service; relayed by libs/outbox).
+model OutboxEvent {
+  id          String    @id @db.Uuid
+  aggregateId String    @map("aggregate_id") @db.Uuid
+  type        String
+  payload     Json      @db.JsonB
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(3)
+
+  @@map("outbox")
+}

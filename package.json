@@ -9,9 +9,11 @@
     "node": ">=26"
   },
   "scripts": {
-    "build": "nest build order-service",
+    "build": "nest build order-service && nest build payment-service",
     "start:order": "nest start order-service --watch",
     "start:order:prod": "node dist/apps/order-service/apps/order-service/src/main.js",
+    "start:payment": "nest start payment-service --watch",
+    "start:payment:prod": "node dist/apps/payment-service/apps/payment-service/src/main.js",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -19,9 +21,11 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest-e2e.config.js",
     "postinstall": "pnpm prisma:generate",
-    "prisma:generate": "prisma generate --config apps/order-service/prisma.config.ts",
+    "prisma:generate": "prisma generate --config apps/order-service/prisma.config.ts && prisma generate --config apps/payment-service/prisma.config.ts",
     "prisma:migrate": "prisma migrate dev --config apps/order-service/prisma.config.ts",
-    "prisma:deploy": "prisma migrate deploy --config apps/order-service/prisma.config.ts"
+    "prisma:deploy": "prisma migrate deploy --config apps/order-service/prisma.config.ts",
+    "prisma:migrate:payment": "prisma migrate dev --config apps/payment-service/prisma.config.ts",
+    "prisma:deploy:payment": "prisma migrate deploy --config apps/payment-service/prisma.config.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.5.0",
