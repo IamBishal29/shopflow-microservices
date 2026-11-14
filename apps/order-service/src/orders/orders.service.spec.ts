@@ -1,6 +1,8 @@
+import { Logger } from '@nestjs/common';
 import { OrderNotFoundError, OrderTotalTooLargeError } from './order.errors';
 import { NewOrder, Order } from './order';
-import { OrdersRepository } from './orders.repository';
+import { paidOrderId, paymentFailed, paymentSucceeded } from './payment-event.fixtures';
+import { OrdersRepository, PaymentResultOutcome } from './orders.repository';
 import { OrdersService } from './orders.service';
 
 const orderId = '6f1c2b8e-0c5e-4f8a-9d2e-1a2b3c4d5e6f';
@@ -23,6 +25,7 @@ describe('OrdersService', () => {
     create: jest.fn<Promise<Order>, [NewOrder, (order: Order) => unknown]>(),
     findById: jest.fn<Promise<Order | null>, [string]>(),
     list: jest.fn<Promise<readonly Order[]>, [{ limit: number; offset: number }]>(),
+    applyPaymentResult: jest.fn<Promise<PaymentResultOutcome>, [string, string, string]>(),
   };
   const service = new OrdersService(repo as unknown as OrdersRepository);
 
@@ -88,6 +91,43 @@ describe('OrdersService', () => {
       items: [savedOrder],
       limit: 20,
       offset: 40,
+    });
+  });
+
+  describe('handlePaymentResult', () => {
+    beforeAll(() => {
+      jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+      jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    });
+
+    it('marks order PAID when payment.succeeded arrives', async () => {
+      repo.applyPaymentResult.mockResolvedValue({ result: 'applied' });
+      await service.handlePaymentResult(paymentSucceeded);
+      expect(repo.applyPaymentResult).toHaveBeenCalledWith(
+        paymentSucceeded.eventId,
+        paidOrderId,
+        'PAID',
+      );
+    });
+
+    it('marks order PAYMENT_FAILED when payment.failed arrives', async () => {
+      repo.applyPaymentResult.mockResolvedValue({ result: 'applied' });
+      await service.handlePaymentResult(paymentFailed);
+      expect(repo.applyPaymentResult).toHaveBeenCalledWith(
+        paymentFailed.eventId,
+        paidOrderId,
+        'PAYMENT_FAILED',
+      );
+    });
+
+    it('ignores and logs a late result for an order that is already final', async () => {
+      const warn = jest.spyOn(Logger.prototype, 'warn');
+      repo.applyPaymentResult.mockResolvedValue({ result: 'ignored', current: 'PAID' });
+      await expect(service.handlePaymentResult(paymentFailed)).resolves.toEqual({
+        result: 'ignored',
+        current: 'PAID',
+      });
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('already PAID'));
     });
   });
 });

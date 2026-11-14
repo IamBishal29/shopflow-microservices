@@ -1,6 +1,7 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { NewOrder } from './order';
-import { OrdersRepository } from './orders.repository';
+import { OrderNotFoundError } from './order.errors';
+import { OrdersRepository, PAYMENT_RESULTS_CONSUMER } from './orders.repository';
 
 const createdAt = new Date('2026-11-14T10:00:00.000Z');
 const orderId = '6f1c2b8e-0c5e-4f8a-9d2e-1a2b3c4d5e6f';
@@ -24,9 +25,15 @@ const row = {
 };
 
 describe('OrdersRepository', () => {
-  const prismaOrder = { create: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() };
+  const prismaOrder = {
+    create: jest.fn(),
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+    updateMany: jest.fn(),
+  };
   const outboxEvent = { create: jest.fn() };
-  const tx = { order: prismaOrder, outboxEvent };
+  const $executeRaw = jest.fn<Promise<number>, [TemplateStringsArray, ...unknown[]]>();
+  const tx = { order: prismaOrder, outboxEvent, $executeRaw };
   const $transaction = jest.fn((work: (client: typeof tx) => Promise<unknown>) => work(tx));
   const repository = new OrdersRepository({
     order: prismaOrder,
@@ -109,6 +116,50 @@ describe('OrdersRepository', () => {
       skip: 40,
       take: 20,
       include: { items: true },
+    });
+  });
+
+  describe('applyPaymentResult', () => {
+    const eventId = '7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e01';
+
+    beforeEach(() => $executeRaw.mockResolvedValue(1));
+
+    it('moves a PENDING order to the outcome with a conditional update', async () => {
+      prismaOrder.updateMany.mockResolvedValue({ count: 1 });
+
+      await expect(repository.applyPaymentResult(eventId, orderId, 'PAID')).resolves.toEqual({
+        result: 'applied',
+      });
+      expect(prismaOrder.updateMany).toHaveBeenCalledWith({
+        where: { id: orderId, status: 'PENDING' },
+        data: { status: 'PAID' },
+      });
+      const [, claimedId, consumer] = $executeRaw.mock.calls[0] ?? [];
+      expect([claimedId, consumer]).toEqual([eventId, PAYMENT_RESULTS_CONSUMER]);
+    });
+
+    it('does nothing for an event that was already processed', async () => {
+      $executeRaw.mockResolvedValue(0);
+      await expect(repository.applyPaymentResult(eventId, orderId, 'PAID')).resolves.toEqual({
+        result: 'duplicate',
+      });
+      expect(prismaOrder.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('ignores a result for an order that is already final', async () => {
+      prismaOrder.updateMany.mockResolvedValue({ count: 0 });
+      prismaOrder.findUnique.mockResolvedValue({ status: 'PAID' });
+      await expect(
+        repository.applyPaymentResult(eventId, orderId, 'PAYMENT_FAILED'),
+      ).resolves.toEqual({ result: 'ignored', current: 'PAID' });
+    });
+
+    it('throws OrderNotFoundError for an unknown order, rolling back the claim', async () => {
+      prismaOrder.updateMany.mockResolvedValue({ count: 0 });
+      prismaOrder.findUnique.mockResolvedValue(null);
+      await expect(repository.applyPaymentResult(eventId, orderId, 'PAID')).rejects.toBeInstanceOf(
+        OrderNotFoundError,
+      );
     });
   });
 });

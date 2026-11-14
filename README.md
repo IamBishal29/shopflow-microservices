@@ -31,6 +31,20 @@ pnpm start:order              # http://localhost:3001/health
 pnpm start:payment            # http://localhost:3002/health
 ```
 
+## Demo the saga
+
+With both services running:
+
+```bash
+# Within the limit (default 1000.00) -> PAID; above it -> PAYMENT_FAILED
+curl -s -X POST localhost:3001/orders -H 'content-type: application/json' \
+  -d '{"customerId":"c-1","currency":"EUR","items":[{"sku":"BOOK-1","quantity":1,"unitPriceCents":2500}]}'
+curl -s localhost:3001/orders/<id>     # PENDING at first, PAID a few seconds later
+```
+
+Watch `order.created.v1`, `payment.*.v1`, `.retry` and `.dlq` topics in Kafka UI
+(http://localhost:8080). `PAYMENT_DECLINE_ABOVE_CENTS` tunes the decline threshold.
+
 ## Scripts
 
 | Command             | What it does                                           |
