@@ -24,7 +24,8 @@ Requirements: Node.js 26 (see `.nvmrc`), pnpm 12, Docker.
 ```bash
 pnpm install
 cp .env.example .env          # local placeholders only
-docker compose up -d postgres # Postgres for order-service
+docker compose up -d postgres kafka kafka-init kafka-ui
+                              # Postgres, Kafka (creates topics), Kafka UI on :8080
 pnpm start:order              # http://localhost:3001/health
 ```
 

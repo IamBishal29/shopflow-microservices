@@ -11,6 +11,6 @@ module.exports = {
   moduleNameMapper: {
     // Generated Prisma client uses ESM-style '.js' specifiers for its .ts files.
     '^(\\.{1,2}/.*)\\.js$': '$1',
-    '^@shopflow/contracts(|/.*)$': '<rootDir>/libs/contracts/src/$1',
+    '^@shopflow/([^/]+)$': '<rootDir>/libs/$1/src',
   },
 };

@@ -5,6 +5,6 @@
     "outDir": "../../dist/apps/order-service",
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "../../libs/**/src/**/*.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "test", "**/*.spec.ts", "**/*.e2e-spec.ts"]
 }

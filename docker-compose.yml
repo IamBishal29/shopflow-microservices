@@ -1,4 +1,4 @@
-# Local infrastructure. Kafka and Redis are added by their own issues (M2, M3).
+# Local infrastructure. Redis is added by its own issue (M3).
 # Database-per-service: each service gets its own database; order-service owns "orders".
 services:
   postgres:
@@ -17,6 +17,73 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # Single-node Kafka in KRaft mode: one process is both broker and controller, no ZooKeeper.
+  kafka:
+    image: apache/kafka:4.4.0
+    container_name: shopflow-kafka
+    ports:
+      - '${KAFKA_PORT:-9092}:9092'
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # INTERNAL for containers (kafka:29092), EXTERNAL for apps on the host (localhost:9092).
+      KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:${KAFKA_PORT:-9092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      # Topics are created explicitly by kafka-init; a typo must fail, not create a new topic.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          '/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:29092 > /dev/null 2>&1',
+        ]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
+
+  # One-shot job: creates the topics from docs/ARCHITECTURE.md, then exits.
+  # 3 partitions per topic; the message key (orderId) decides the partition, so all
+  # events of one order stay in order.
+  kafka-init:
+    image: apache/kafka:4.4.0
+    container_name: shopflow-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: 'no'
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        set -e
+        for topic in order.created.v1 payment.succeeded.v1 payment.failed.v1 \
+                     order.created.v1.dlq payment.succeeded.v1.dlq payment.failed.v1.dlq; do
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists \
+            --topic "$$topic" --partitions 3 --replication-factor 1
+        done
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --list
+
+  # Web UI to browse topics, messages and consumer groups: http://localhost:8080
+  kafka-ui:
+    image: kafbat/kafka-ui:v1.5.0
+    container_name: shopflow-kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - '${KAFKA_UI_PORT:-8080}:8080'
+    environment:
+      KAFKA_CLUSTERS_0_NAME: shopflow
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
 
 volumes:
   postgres-data:

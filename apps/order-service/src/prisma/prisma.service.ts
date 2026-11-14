@@ -1,11 +1,11 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { EnvironmentVariables } from '../config/env.validation';
 import { PrismaClient } from '../generated/prisma/client';
 
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+export class PrismaService extends PrismaClient implements OnModuleInit, OnApplicationShutdown {
   private readonly logger = new Logger(PrismaService.name);
 
   constructor(config: ConfigService<EnvironmentVariables, true>) {
@@ -30,8 +30,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     }
   }
 
-  /** Close the pool on SIGTERM (enableShutdownHooks) so connections are not leaked. */
-  async onModuleDestroy(): Promise<void> {
+  /**
+   * Close the pool on SIGTERM (enableShutdownHooks). Runs in the last shutdown phase, after
+   * Kafka consumers stopped in onModuleDestroy, so in-flight handlers can still use the DB.
+   */
+  async onApplicationShutdown(): Promise<void> {
     await this.$disconnect();
   }
 }

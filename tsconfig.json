@@ -19,8 +19,7 @@
     "incremental": false,
     "outDir": "./dist",
     "paths": {
-      "@shopflow/contracts": ["./libs/contracts/src"],
-      "@shopflow/contracts/*": ["./libs/contracts/src/*"]
+      "@shopflow/*": ["./libs/*/src"]
     }
   },
   "include": ["apps/**/*.ts", "libs/**/*.ts"],

@@ -1,9 +1,8 @@
 import { INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { createTestApp } from './test-app';
 
 describe('Health endpoints (e2e)', () => {
   // Stand-in for Postgres: these tests cover the HTTP wiring and status codes.
@@ -11,17 +10,14 @@ describe('Health endpoints (e2e)', () => {
   const prisma = {
     $queryRaw: jest.fn<Promise<unknown>, []>(),
     onModuleInit: jest.fn(),
-    onModuleDestroy: jest.fn(),
+    onApplicationShutdown: jest.fn(),
   };
   let app: INestApplication<App>;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-      .overrideProvider(PrismaService)
-      .useValue(prisma)
-      .compile();
-    app = moduleRef.createNestApplication();
-    await app.init();
+    app = await createTestApp((builder) =>
+      builder.overrideProvider(PrismaService).useValue(prisma),
+    );
   });
 
   afterAll(async () => {

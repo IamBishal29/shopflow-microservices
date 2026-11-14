@@ -1,11 +1,11 @@
 # Progress
 
 ## Current
-- Milestone: M1 Order service
-- Issue: #5 global exception filter, PR open (targets main)
-- Branch: feat/5-problem-details (done; waiting for merge)
-- Next step: Syed merges the #5 PR, then `/next-task` picks up #7 (Kafka KRaft + KafkaJS
-  module). #6 Swagger is deferred to after the interview (not interview-critical).
+- Milestone: M2 Event backbone
+- Issue: #7 Kafka KRaft + libs/kafka, PR open (targets main)
+- Branch: feat/7-kafka-backbone (done; waiting for merge)
+- Next step: Syed merges the #7 PR, then `/next-task` picks up #8 (event contracts in
+  libs/contracts), then #9 outbox.
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -31,6 +31,9 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   bounded inputs; verified against real Postgres (learning note 03)
 - #5 errors: DomainError (code, kind, title) in services; global RFC 9457 problem+json
   filter; 5xx never expose detail; health keeps Terminus 503 body (learning note 04)
+- #7 Kafka: apache/kafka 4.4 KRaft + kafka-init topics + kafbat UI in compose; libs/kafka
+  (idempotent producer, manual-commit consumer, shutdown ordering); kafkajs kept after
+  Confluent client had no Node 26 build (ADR 0002 amendment, learning note 05)
 
 ## Decisions waiting for Syed
 - None
@@ -41,6 +44,9 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - Local DB: `docker compose up -d postgres`, then `pnpm prisma:deploy` (needs
   ORDER_DATABASE_URL in .env; compose default password is `shopflow`).
 - No stacked PRs: every PR targets main (#34 landed on a feature branch; fixed by #35).
+- kafkajs is unmaintained; prints TimeoutNegativeWarning on Node 26 (harmless). Swap to
+  @confluentinc/kafka-javascript once it ships Node 26 prebuilts (only libs/kafka changes).
+- Git Bash on Windows: prefix docker exec commands with MSYS_NO_PATHCONV=1.
 - Known limitation: unit prices come from the client (no catalogue, PRD out of scope);
   customerId comes from the body until JWT (#16).
 
@@ -50,4 +56,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-14: #2 config module, PR #32 (merged)
 - 2026-11-14: #3 Prisma + Postgres, PRs #33 + #34 (merged), #35 recovery
 - 2026-11-14: #4 orders API (PRs #35, #36 merged)
-- 2026-11-14: #5 problem details filter
+- 2026-11-14: #5 problem details filter (PR #37 merged)
+- 2026-11-14: #7 Kafka backbone
