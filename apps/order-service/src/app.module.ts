@@ -1,6 +1,7 @@
 import { Module, ValidationPipe } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_PIPE } from '@nestjs/core';
+import { APP_FILTER, APP_PIPE } from '@nestjs/core';
+import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 import { validateEnv } from './config/env.validation';
 import { HealthModule } from './health/health.module';
 import { OrdersModule } from './orders/orders.module';
@@ -19,6 +20,8 @@ import { PrismaModule } from './prisma/prisma.module';
     OrdersModule,
   ],
   providers: [
+    // One global mapping from errors to RFC 9457 responses (see docs/learning/04).
+    { provide: APP_FILTER, useClass: ProblemDetailsFilter },
     // Registered through DI (not app.useGlobalPipes in main.ts) so e2e test apps built
     // from AppModule validate exactly like production.
     {
