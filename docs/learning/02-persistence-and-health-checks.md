@@ -25,7 +25,7 @@ process alive?" and `/health/ready` means "can it serve traffic right now?"
 flowchart LR
   k8s[Kubernetes] -- /health fails --> restart[restart pod]
   k8s -- /health/ready fails --> out[remove from Service endpoints<br/>no restart]
-  ready[/health/ready/] --> q[(SELECT 1, 1s timeout)]
+  ready["/health/ready"] --> q[("SELECT 1, 1s timeout")]
 ```
 
 | Concept         | ShopFlow (NestJS)                            | .NET                                                         |
