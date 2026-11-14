@@ -6,6 +6,7 @@ import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 import { EnvironmentVariables, validateEnv } from './config/env.validation';
 import { HealthModule } from './health/health.module';
 import { OrdersModule } from './orders/orders.module';
+import { OutboxModule } from './outbox/outbox.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -26,6 +27,7 @@ import { PrismaModule } from './prisma/prisma.module';
     PrismaModule,
     HealthModule,
     OrdersModule,
+    OutboxModule,
   ],
   providers: [
     // One global mapping from errors to RFC 9457 responses (see docs/learning/04).
