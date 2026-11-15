@@ -1,11 +1,12 @@
 # Progress
 
 ## Current
-- Milestone: M3 Edge
-- Issue: #19 idempotency keys, PR #57 open (targets main).
-- Branch: feat/19-idempotency-keys (done; waiting for merge)
-- Next step: Syed merges PR #57, then `/next-task` picks up #29 (interview Q&A doc,
-  last item of the Day 3 plan). After that: #18 response cache, follow-ups #51, #53, #56.
+- Milestone: M3 Edge (Day 3 interview plan complete once PR #58 merges)
+- Issue: #29 README demo + docs/INTERVIEW.md (M6, pulled forward for the interview),
+  PR #58 open (targets main).
+- Branch: docs/29-demo-and-interview (done; waiting for merge)
+- Next step: Syed merges PR #58 and rehearses with docs/INTERVIEW.md + the README demo.
+  Then `/next-task`: lowest open M3 issue is #18 (response cache); follow-ups #51, #53, #56.
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -85,6 +86,9 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   response 24 h, fingerprint (canonical JSON), per-sub scope; replay / 409 / 422 / 400 /
   503 + Retry-After; verified live incl. a real parallel race and Redis stopped
   (PR #57, learning note 18)
+- #29 docs: README architecture diagram, gateway demo script, failure demos (every
+  command run live first); docs/INTERVIEW.md with walkthrough, pattern map, 33 Q&As,
+  100x answer, known gaps (PR #58, learning note 19)
 
 ## Decisions waiting for Syed
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
@@ -160,4 +164,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-15: #15 gateway proxy + correlation ID, PR #52 (merged)
 - 2026-11-15: #16 JWT auth, PR #54 (merged)
 - 2026-11-15: #17 rate limiting, PR #55 (merged)
-- 2026-11-15: #19 idempotency keys, PR #57
+- 2026-11-15: #19 idempotency keys, PR #57 (merged)
+- 2026-11-15: #29 demo script + interview guide, PR #58
