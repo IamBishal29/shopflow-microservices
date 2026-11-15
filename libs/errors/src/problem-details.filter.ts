@@ -1,9 +1,7 @@
 import { ArgumentsHost, Catch, ExceptionFilter, Logger } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { CORRELATION_HEADER, isValidCorrelationId } from './correlation-id';
 import { PROBLEM_CONTENT_TYPE, toProblem } from './problem-details';
-
-const CORRELATION_HEADER = 'x-correlation-id';
-const SAFE_CORRELATION_ID = /^[A-Za-z0-9._-]{1,128}$/;
 
 /**
  * The single place where errors become HTTP responses (RFC 9457 problem+json).
@@ -24,7 +22,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       instance: request.originalUrl,
       timestamp: new Date().toISOString(),
       // Echo only well-formed IDs: the header is client input and ends up in our body.
-      ...(correlationId && SAFE_CORRELATION_ID.test(correlationId) ? { correlationId } : {}),
+      ...(isValidCorrelationId(correlationId) ? { correlationId } : {}),
     };
 
     if (problem.status >= 500) {
