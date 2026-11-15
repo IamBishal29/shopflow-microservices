@@ -2,12 +2,10 @@
 
 ## Current
 - Milestone: M3 Edge
-- Issue: #17 rate limiting, PR #55 open (targets main).
-- Branch: feat/17-rate-limiting (done; waiting for merge)
-- Next step: Syed merges PR #55, then `/next-task`. Day 3 plan says #19 idempotency keys
-  next (reuses the gateway's Redis client), then #29 interview Q&A doc. Lowest-numbered
-  open M3 issue is #18 (response cache), which the plan puts after the interview.
-  Small follow-ups: #51, #53.
+- Issue: #19 idempotency keys, PR #57 open (targets main).
+- Branch: feat/19-idempotency-keys (done; waiting for merge)
+- Next step: Syed merges PR #57, then `/next-task` picks up #29 (interview Q&A doc,
+  last item of the Day 3 plan). After that: #18 response cache, follow-ups #51, #53, #56.
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -82,6 +80,11 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   {hash-tag} keys, per JWT sub or IP, one budget across routes, 429 problem+json +
   Retry-After, health skipped; verified live with 2 replicas sharing Redis and with Redis
   stopped (~3 ms, fail open) (PR #55, learning note 17)
+- #19 idempotency keys (Syed chose gateway-only now + follow-up #56, fail closed):
+  Idempotency-Key required on POST /orders; SET NX lock (timeout + 5 s), stored final
+  response 24 h, fingerprint (canonical JSON), per-sub scope; replay / 409 / 422 / 400 /
+  503 + Retry-After; verified live incl. a real parallel race and Redis stopped
+  (PR #57, learning note 18)
 
 ## Decisions waiting for Syed
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
@@ -95,7 +98,11 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   the dev token endpoint.
 - And for #17: `REDIS_URL=redis://localhost:6379`, `RATE_LIMIT_MAX=100`,
   `RATE_LIMIT_WINDOW_SECONDS=60`.
-- Next pick: follow the Day 3 plan (#19 before #18), or strictly lowest-numbered (#18)?
+- Followed the Day 3 plan (#19 before #18) since no answer came; say if you prefer
+  strict issue order from now on.
+- And for #19: `IDEMPOTENCY_TTL_SECONDS=86400`.
+- POST /orders now needs an Idempotency-Key header (400 without): README demo/curl
+  examples that create orders through the gateway must send one.
 - Optional follow-up: validateEnv is copied in 3 apps; extract a helper?
 - PR #52 is ~445 code lines (205 prod + 240 tests), over the cap; kept whole before the
   interview. OK, or split next time?
@@ -128,6 +135,7 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   explicitly. Syed: check that .env has these keys.
 - Rate limiting: Lua script only verified live; automate with Testcontainers (#22).
   Behind a load balancer set Express `trust proxy` or every client shares the LB's IP.
+- Idempotency gap until #56: a retry after a gateway 504 can duplicate an order.
 - Gateway follow-ups: abort downstream call on client disconnect; circuit breaker (M5?).
 - Known limitation: unit prices come from the client (no catalogue, PRD out of scope);
   customerId comes from the body until JWT (#16).
@@ -151,4 +159,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-15: #49 gateway scaffold, PR #50 (merged)
 - 2026-11-15: #15 gateway proxy + correlation ID, PR #52 (merged)
 - 2026-11-15: #16 JWT auth, PR #54 (merged)
-- 2026-11-15: #17 rate limiting, PR #55
+- 2026-11-15: #17 rate limiting, PR #55 (merged)
+- 2026-11-15: #19 idempotency keys, PR #57

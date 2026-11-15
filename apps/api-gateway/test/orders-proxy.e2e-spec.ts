@@ -3,6 +3,7 @@ import { AddressInfo } from 'node:net';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
+import { FakeRedis } from '../src/idempotency/fake-redis';
 import { createGateway, tokenFor } from './test-app';
 
 const ORDER_ID = '0b8f6c1e-4a2d-4c3b-9f1e-2d7a5b6c8e90';
@@ -43,7 +44,10 @@ describe('api-gateway /orders proxy (e2e)', () => {
   beforeAll(async () => {
     orderService = await startFakeOrderService(seen, behaviour);
     const { port } = orderService.address() as AddressInfo;
-    app = await createGateway({ ORDER_SERVICE_URL: `http://127.0.0.1:${port}` });
+    app = await createGateway(
+      { ORDER_SERVICE_URL: `http://127.0.0.1:${port}` },
+      { redis: new FakeRedis() }, // POST /orders needs the idempotency store
+    );
   });
 
   /** Requests as an authenticated client (the JWT guard is covered in auth.e2e-spec.ts). */
@@ -63,6 +67,7 @@ describe('api-gateway /orders proxy (e2e)', () => {
   it('forwards POST /orders with body and correlation ID, and returns the downstream answer', async () => {
     const res = await api()
       .post('/orders')
+      .set('idempotency-key', 'proxy-test-1')
       .set('x-correlation-id', 'trace-123')
       .set('cookie', 'session=secret')
       .send({ customerId: 'c-1' })

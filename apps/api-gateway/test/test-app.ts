@@ -28,7 +28,7 @@ export const TEST_JWT = {
  */
 export async function createGateway(
   overrides: Readonly<Record<string, unknown>>,
-  options: { readonly storage?: ThrottlerStorage } = {},
+  options: { readonly storage?: ThrottlerStorage; readonly redis?: object } = {},
 ): Promise<INestApplication<App>> {
   const values: Readonly<Record<string, unknown>> = {
     NODE_ENV: 'development',
@@ -41,13 +41,14 @@ export async function createGateway(
     REDIS_URL: 'redis://127.0.0.1:1',
     RATE_LIMIT_MAX: 100,
     RATE_LIMIT_WINDOW_SECONDS: 60,
+    IDEMPOTENCY_TTL_SECONDS: 86_400,
     ...overrides,
   };
   let builder = Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(ConfigService)
     .useValue({ get: (key: string) => values[key] })
     .overrideProvider(REDIS)
-    .useValue(redisStub());
+    .useValue(options.redis ?? redisStub());
   if (options.storage) {
     builder = builder.overrideProvider(getStorageToken()).useValue(options.storage);
   }

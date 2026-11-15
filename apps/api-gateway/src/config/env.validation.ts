@@ -107,6 +107,17 @@ export class EnvironmentVariables {
   @Min(1)
   @Max(3_600)
   readonly RATE_LIMIT_WINDOW_SECONDS: number = 60;
+
+  /**
+   * How long a completed request is replayable under its Idempotency-Key. Must exceed the
+   * longest client retry period (Stripe: 24 h); longer only costs Redis memory.
+   */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(60)
+  @Max(604_800)
+  readonly IDEMPOTENCY_TTL_SECONDS: number = 86_400;
 }
 
 /**
