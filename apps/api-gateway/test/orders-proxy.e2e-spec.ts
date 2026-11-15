@@ -1,11 +1,9 @@
 import { createServer, IncomingHttpHeaders, Server } from 'node:http';
 import { AddressInfo } from 'node:net';
 import { INestApplication } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { AppModule } from '../src/app.module';
+import { createGateway, tokenFor } from './test-app';
 
 const ORDER_ID = '0b8f6c1e-4a2d-4c3b-9f1e-2d7a5b6c8e90';
 
@@ -36,21 +34,6 @@ function startFakeOrderService(seen: Seen, behaviour: { stall: boolean }): Promi
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
-async function createGateway(orderServiceUrl: string): Promise<INestApplication<App>> {
-  // A plain stand-in: a real ConfigService would prefer process.env (set by setup-env.ts).
-  const values: Readonly<Record<string, unknown>> = {
-    ORDER_SERVICE_URL: orderServiceUrl,
-    DOWNSTREAM_TIMEOUT_MS: 200,
-  };
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-    .overrideProvider(ConfigService)
-    .useValue({ get: (key: string) => values[key] })
-    .compile();
-  const app = moduleRef.createNestApplication<INestApplication<App>>();
-  await app.init();
-  return app;
-}
-
 describe('api-gateway /orders proxy (e2e)', () => {
   const seen: Seen = {};
   const behaviour = { stall: false };
@@ -60,8 +43,12 @@ describe('api-gateway /orders proxy (e2e)', () => {
   beforeAll(async () => {
     orderService = await startFakeOrderService(seen, behaviour);
     const { port } = orderService.address() as AddressInfo;
-    app = await createGateway(`http://127.0.0.1:${port}`);
+    app = await createGateway({ ORDER_SERVICE_URL: `http://127.0.0.1:${port}` });
   });
+
+  /** Requests as an authenticated client (the JWT guard is covered in auth.e2e-spec.ts). */
+  const api = (target: INestApplication<App> = app) =>
+    request.agent(target.getHttpServer()).set('authorization', `Bearer ${tokenFor(target)}`);
 
   afterEach(() => {
     behaviour.stall = false;
@@ -74,7 +61,7 @@ describe('api-gateway /orders proxy (e2e)', () => {
   });
 
   it('forwards POST /orders with body and correlation ID, and returns the downstream answer', async () => {
-    const res = await request(app.getHttpServer())
+    const res = await api()
       .post('/orders')
       .set('x-correlation-id', 'trace-123')
       .set('cookie', 'session=secret')
@@ -86,10 +73,12 @@ describe('api-gateway /orders proxy (e2e)', () => {
     expect(seen).toMatchObject({ method: 'POST', url: '/orders', body: '{"customerId":"c-1"}' });
     expect(seen.headers?.['x-correlation-id']).toBe('trace-123');
     expect(seen.headers?.cookie).toBeUndefined();
+    // Auth terminates at the gateway; the token is not passed on.
+    expect(seen.headers?.authorization).toBeUndefined();
   });
 
   it('generates a correlation ID when the client sends none and forwards it', async () => {
-    const res = await request(app.getHttpServer()).get('/orders?limit=5').expect(200);
+    const res = await api().get('/orders?limit=5').expect(200);
     const id = res.headers['x-correlation-id'];
     expect(id).toMatch(/^[0-9a-f-]{36}$/);
     expect(seen.url).toBe('/orders?limit=5');
@@ -97,7 +86,7 @@ describe('api-gateway /orders proxy (e2e)', () => {
   });
 
   it('passes a downstream problem+json 404 through unchanged', async () => {
-    const res = await request(app.getHttpServer())
+    const res = await api()
       .get(`/orders/${ORDER_ID}`)
       .expect(404)
       .expect('content-type', /application\/problem\+json/);
@@ -106,14 +95,14 @@ describe('api-gateway /orders proxy (e2e)', () => {
 
   it('rejects a non-UUID id at the edge without calling order-service', async () => {
     seen.url = undefined;
-    const res = await request(app.getHttpServer()).get('/orders/..').expect(400);
+    const res = await api().get('/orders/..').expect(400);
     expect(res.body).toMatchObject({ status: 400, code: 'BAD_REQUEST' });
     expect(seen.url).toBeUndefined();
   });
 
   it('answers 504 problem+json when order-service does not respond in time', async () => {
     behaviour.stall = true;
-    const res = await request(app.getHttpServer())
+    const res = await api()
       .get('/orders')
       .set('x-correlation-id', 'slow-1')
       .expect(504)
@@ -123,9 +112,9 @@ describe('api-gateway /orders proxy (e2e)', () => {
   });
 
   it('answers 502 problem+json when order-service is unreachable', async () => {
-    const down = await createGateway('http://127.0.0.1:1'); // nothing listens on port 1
+    const down = await createGateway({ ORDER_SERVICE_URL: 'http://127.0.0.1:1' }); // nothing listens on port 1
     try {
-      const res = await request(down.getHttpServer()).get('/orders').expect(502);
+      const res = await api(down).get('/orders').expect(502);
       expect(res.body).toMatchObject({ code: 'BAD_GATEWAY', status: 502 });
     } finally {
       await down.close();

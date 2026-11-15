@@ -1,6 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
 import { HealthCheck, HealthCheckResult, HealthCheckService } from '@nestjs/terminus';
+import { Public } from '../auth/public.decorator';
 
+// Probes carry no credentials; health reveals nothing sensitive.
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(private readonly health: HealthCheckService) {}
