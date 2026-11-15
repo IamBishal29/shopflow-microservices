@@ -1,6 +1,16 @@
 import 'reflect-metadata';
 import { Expose, plainToInstance, Transform, Type } from 'class-transformer';
-import { IsIn, IsInt, IsUrl, Max, Min, validateSync } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsString,
+  IsUrl,
+  Length,
+  Max,
+  Min,
+  MinLength,
+  validateSync,
+} from 'class-validator';
 
 export const NODE_ENVS = ['development', 'test', 'production'] as const;
 export type NodeEnv = (typeof NODE_ENVS)[number];
@@ -44,6 +54,36 @@ export class EnvironmentVariables {
   @Min(100)
   @Max(30_000)
   readonly DOWNSTREAM_TIMEOUT_MS: number = 3_000;
+
+  /**
+   * HS256 signing key. Anyone holding it can mint valid tokens, so it has no default and
+   * must carry at least 256 bits (32+ chars), e.g. `openssl rand -base64 48`.
+   */
+  // `!`: required; a built-in fallback secret would be a backdoor shipped in the image.
+  @Expose()
+  @IsString()
+  @MinLength(32, { message: 'JWT_SECRET must be at least 32 characters' })
+  readonly JWT_SECRET!: string;
+
+  /** `iss` claim: who issued the token. Tokens from any other issuer are rejected. */
+  @Expose()
+  @IsString()
+  @Length(1, 128)
+  readonly JWT_ISSUER: string = 'shopflow-gateway';
+
+  /** `aud` claim: which API the token is for, so a token for another API is useless here. */
+  @Expose()
+  @IsString()
+  @Length(1, 128)
+  readonly JWT_AUDIENCE: string = 'shopflow-api';
+
+  /** Access-token lifetime. Short, because a JWT cannot be revoked before it expires. */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(60)
+  @Max(86_400)
+  readonly JWT_TTL_SECONDS: number = 900;
 }
 
 /**

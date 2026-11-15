@@ -4,6 +4,7 @@ const validEnv = {
   NODE_ENV: 'test',
   GATEWAY_PORT: '4000',
   ORDER_SERVICE_URL: 'http://order-service:3001',
+  JWT_SECRET: 'test-secret-that-is-at-least-32-chars',
 };
 
 describe('validateEnv', () => {
@@ -15,8 +16,14 @@ describe('validateEnv', () => {
   });
 
   it('applies defaults for optional variables', () => {
-    const env = validateEnv({ ORDER_SERVICE_URL: validEnv.ORDER_SERVICE_URL });
+    const env = validateEnv({
+      ORDER_SERVICE_URL: validEnv.ORDER_SERVICE_URL,
+      JWT_SECRET: validEnv.JWT_SECRET,
+    });
     expect(env.GATEWAY_PORT).toBe(3000);
+    expect(env.JWT_ISSUER).toBe('shopflow-gateway');
+    expect(env.JWT_AUDIENCE).toBe('shopflow-api');
+    expect(env.JWT_TTL_SECONDS).toBe(900);
     expect(env.DOWNSTREAM_TIMEOUT_MS).toBe(3_000);
     expect(env.NODE_ENV).toBe('development');
   });
@@ -30,6 +37,13 @@ describe('validateEnv', () => {
     expect(() => validateEnv({})).toThrow(/ORDER_SERVICE_URL/);
     expect(() => validateEnv({ ...validEnv, ORDER_SERVICE_URL: 'ftp://files:21' })).toThrow(
       /ORDER_SERVICE_URL/,
+    );
+  });
+
+  it('fails fast without a JWT secret or with a short one', () => {
+    expect(() => validateEnv({ ...validEnv, JWT_SECRET: undefined })).toThrow(/JWT_SECRET/);
+    expect(() => validateEnv({ ...validEnv, JWT_SECRET: 'short' })).toThrow(
+      /JWT_SECRET must be at least 32 characters/,
     );
   });
 
