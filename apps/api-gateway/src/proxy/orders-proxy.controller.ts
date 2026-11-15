@@ -1,7 +1,21 @@
-import { Controller, Get, Param, ParseUUIDPipe, Post, Req, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Headers,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Req,
+  Res,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
+import type { RequestWithUser } from '../auth/authenticated-user';
 import { EnvironmentVariables } from '../config/env.validation';
+import { requestFingerprint } from '../idempotency/fingerprint';
+import { IdempotencyUnavailableError } from '../idempotency/idempotency.errors';
+import { IdempotencyService } from '../idempotency/idempotency.service';
 import { DownstreamClient, DownstreamResponse } from './downstream.client';
 
 /**
@@ -15,21 +29,44 @@ export class OrdersProxyController {
 
   constructor(
     private readonly downstream: DownstreamClient,
+    private readonly idempotency: IdempotencyService,
     config: ConfigService<EnvironmentVariables, true>,
   ) {
     this.baseUrl = config.get('ORDER_SERVICE_URL', { infer: true });
   }
 
+  /** Requires Idempotency-Key: a retried POST returns the first answer, never a 2nd order. */
   @Post()
-  async create(@Req() req: Request, @Res() res: Response): Promise<void> {
-    const result = await this.downstream.send({
-      baseUrl: this.baseUrl,
-      method: 'POST',
-      path: '/orders',
-      headers: req.headers,
-      body: req.body as unknown,
-    });
-    reply(res, result);
+  async create(
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Req() req: RequestWithUser,
+    @Res() res: Response,
+  ): Promise<void> {
+    const sub = req.user?.sub;
+    if (!sub) throw new UnauthorizedException(); // unreachable: the JWT guard ran first
+    const body = req.body as unknown;
+    try {
+      const { response, replayed } = await this.idempotency.execute(
+        sub,
+        idempotencyKey,
+        requestFingerprint('POST', '/orders', body),
+        () =>
+          this.downstream.send({
+            baseUrl: this.baseUrl,
+            method: 'POST',
+            path: '/orders',
+            headers: req.headers,
+            body,
+          }),
+      );
+      if (replayed) res.setHeader('Idempotent-Replayed', 'true');
+      reply(res, response);
+    } catch (error: unknown) {
+      if (error instanceof IdempotencyUnavailableError) {
+        res.setHeader('Retry-After', IdempotencyUnavailableError.RETRY_AFTER_SECONDS);
+      }
+      throw error;
+    }
   }
 
   @Get()
