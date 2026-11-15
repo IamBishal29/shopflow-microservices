@@ -2,12 +2,10 @@
 
 ## Current
 - Milestone: M3 Edge
-- Issue: #49 api-gateway scaffold (split from #15), PR #50 open (targets main).
-- Branch: feat/49-gateway-scaffold (done; waiting for merge)
-- Next step: Syed merges PR #50, then `/next-task` resumes #15 on a fresh branch from main:
-  correlation ID middleware + orders proxy via native fetch (AbortSignal.timeout ->
-  504, connection refused -> 502, downstream problem bodies passed through) + e2e with a
-  fake order-service on a random port.
+- Issue: #15 correlation ID + /orders proxy, PR #52 open (targets main).
+- Branch: feat/15-gateway-proxy (done; waiting for merge)
+- Next step: Syed merges PR #52, then `/next-task` picks up #16 (JWT at the gateway).
+  #51 (correlation ID into order.created) is small and can follow after #16/#17.
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -68,6 +66,11 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   libs/errors (DomainError + problem details + filter moved from order-service),
   apps/api-gateway :3000 with validated config, health (readiness ignores downstreams);
   verified live (PR #50, learning note 14)
+- #15 gateway proxy: CorrelationIdMiddleware (reuse valid or generate UUID), explicit
+  /orders routes, fetch + AbortSignal.timeout -> 504, transport failure -> 502, downstream
+  problem bodies passed through, header allowlist; e2e with a real fake order-service
+  caught a timeout misclassification; verified live through the full saga
+  (PR #52, learning note 15). Follow-up #51 created.
 
 ## Decisions waiting for Syed
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
@@ -76,6 +79,8 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - Please also add: `GATEWAY_PORT=3000`, `ORDER_SERVICE_URL=http://localhost:3001`,
   `DOWNSTREAM_TIMEOUT_MS=3000`.
 - Optional follow-up: validateEnv is copied in 3 apps; extract a helper?
+- PR #52 is ~445 code lines (205 prod + 240 tests), over the cap; kept whole before the
+  interview. OK, or split next time?
 - Made for #10: shared libs extracted; payments DB = same Postgres, own database
   and role; payment-service split into 3 sequential PRs.
 
@@ -100,6 +105,10 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   outbox existed, so no event. Harmless local test data.
 - Consumer start-with-retry is duplicated in order- and payment-service; move into
   libs/kafka when a third consumer appears (notification-service, #14).
+- .env is not picked up by `start:*:prod` locally (services failed config validation);
+  for live checks Claude passes ORDER_DATABASE_URL / PAYMENT_DATABASE_URL / KAFKA_BROKERS
+  explicitly. Syed: check that .env has these keys.
+- Gateway follow-ups: abort downstream call on client disconnect; circuit breaker (M5?).
 - Known limitation: unit prices come from the client (no catalogue, PRD out of scope);
   customerId comes from the body until JWT (#16).
 
@@ -119,4 +128,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-14: #11 idempotent consumers (PR #46 merged)
 - 2026-11-14: #12 retry topics + DLQ (PR #47 merged)
 - 2026-11-14: #13 saga completion, PR #48 (merged)
-- 2026-11-15: #49 gateway scaffold, PR #50
+- 2026-11-15: #49 gateway scaffold, PR #50 (merged)
+- 2026-11-15: #15 gateway proxy + correlation ID, PR #52
