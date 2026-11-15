@@ -9,6 +9,15 @@
     "tsConfigPath": "apps/order-service/tsconfig.app.json"
   },
   "projects": {
+    "api-gateway": {
+      "type": "application",
+      "root": "apps/api-gateway",
+      "entryFile": "apps/api-gateway/src/main",
+      "sourceRoot": "apps/api-gateway/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/api-gateway/tsconfig.app.json"
+      }
+    },
     "order-service": {
       "type": "application",
       "root": "apps/order-service",
@@ -61,6 +70,15 @@
       "sourceRoot": "libs/outbox/src",
       "compilerOptions": {
         "tsConfigPath": "libs/outbox/tsconfig.lib.json"
+      }
+    },
+    "errors": {
+      "type": "library",
+      "root": "libs/errors",
+      "entryFile": "index",
+      "sourceRoot": "libs/errors/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/errors/tsconfig.lib.json"
       }
     }
   }

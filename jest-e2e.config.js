@@ -8,6 +8,7 @@ module.exports = {
   testEnvironment: 'node',
   // Each app's variable names are distinct, so loading every setup file is safe.
   setupFiles: [
+    '<rootDir>/apps/api-gateway/test/setup-env.ts',
     '<rootDir>/apps/order-service/test/setup-env.ts',
     '<rootDir>/apps/payment-service/test/setup-env.ts',
   ],

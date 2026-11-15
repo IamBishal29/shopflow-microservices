@@ -9,7 +9,9 @@
     "node": ">=26"
   },
   "scripts": {
-    "build": "nest build order-service && nest build payment-service",
+    "build": "nest build api-gateway && nest build order-service && nest build payment-service",
+    "start:gateway": "nest start api-gateway --watch",
+    "start:gateway:prod": "node dist/apps/api-gateway/apps/api-gateway/src/main.js",
     "start:order": "nest start order-service --watch",
     "start:order:prod": "node dist/apps/order-service/apps/order-service/src/main.js",
     "start:payment": "nest start payment-service --watch",
