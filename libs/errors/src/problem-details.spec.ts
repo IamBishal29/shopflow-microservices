@@ -3,24 +3,24 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { OrderNotFoundError, OrderTotalTooLargeError } from '../../orders/order.errors';
+import { ItemNotFoundError, LimitExceededError } from './fixtures';
 import { toProblem } from './problem-details';
 
 describe('toProblem', () => {
   it('maps a not-found domain error to 404 with a stable type and code', () => {
-    expect(toProblem(new OrderNotFoundError('abc'))).toEqual({
-      type: 'urn:shopflow:problem:order-not-found',
-      title: 'Order not found',
+    expect(toProblem(new ItemNotFoundError('abc'))).toEqual({
+      type: 'urn:shopflow:problem:item-not-found',
+      title: 'Item not found',
       status: 404,
-      detail: 'Order abc not found',
-      code: 'ORDER_NOT_FOUND',
+      detail: 'Item abc not found',
+      code: 'ITEM_NOT_FOUND',
     });
   });
 
   it('maps a business-rule violation to 422', () => {
-    expect(toProblem(new OrderTotalTooLargeError(100))).toMatchObject({
+    expect(toProblem(new LimitExceededError(100))).toMatchObject({
       status: 422,
-      code: 'ORDER_TOTAL_TOO_LARGE',
+      code: 'LIMIT_EXCEEDED',
     });
   });
 

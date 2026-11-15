@@ -1,4 +1,4 @@
-import { DomainError } from '../common/errors/domain-error';
+import { DomainError } from '@shopflow/errors';
 
 export class OrderNotFoundError extends DomainError {
   readonly code = 'ORDER_NOT_FOUND';

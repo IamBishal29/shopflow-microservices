@@ -1,6 +1,6 @@
 import { STATUS_CODES } from 'node:http';
 import { HttpException, HttpStatus } from '@nestjs/common';
-import { DomainError, DomainErrorKind } from '../errors/domain-error';
+import { DomainError, DomainErrorKind } from './domain-error';
 
 /** RFC 9457 problem details plus ShopFlow extension members (code, timestamp, ...). */
 export interface ProblemDetails {

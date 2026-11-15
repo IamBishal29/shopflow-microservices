@@ -8,7 +8,7 @@ import {
   TOPICS,
 } from '@shopflow/contracts';
 import { DEFAULT_RETRY_POLICY, IncomingMessage, KafkaConsumerService } from '@shopflow/kafka';
-import { DomainError } from '../common/errors/domain-error';
+import { DomainError } from '@shopflow/errors';
 import { EnvironmentVariables } from '../config/env.validation';
 import { OrdersService } from './orders.service';
 
