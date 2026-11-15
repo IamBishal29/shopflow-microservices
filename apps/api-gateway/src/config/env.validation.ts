@@ -6,6 +6,7 @@ import {
   IsString,
   IsUrl,
   Length,
+  Matches,
   Max,
   Min,
   MinLength,
@@ -84,6 +85,28 @@ export class EnvironmentVariables {
   @Min(60)
   @Max(86_400)
   readonly JWT_TTL_SECONDS: number = 900;
+
+  /** Shared store for rate-limit counters, e.g. redis://localhost:6379 (rediss:// for TLS). */
+  // `!`: required; every replica must point at the same Redis or limits multiply.
+  @Expose()
+  @Matches(/^rediss?:\/\/\S+$/, { message: 'REDIS_URL must be a redis:// or rediss:// URL' })
+  readonly REDIS_URL!: string;
+
+  /** Requests one client (user, or IP when anonymous) may make per window. */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100_000)
+  readonly RATE_LIMIT_MAX: number = 100;
+
+  /** Window length; a client that exceeds the limit is blocked for one window. */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(3_600)
+  readonly RATE_LIMIT_WINDOW_SECONDS: number = 60;
 }
 
 /**

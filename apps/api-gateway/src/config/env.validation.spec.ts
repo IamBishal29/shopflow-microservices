@@ -5,6 +5,7 @@ const validEnv = {
   GATEWAY_PORT: '4000',
   ORDER_SERVICE_URL: 'http://order-service:3001',
   JWT_SECRET: 'test-secret-that-is-at-least-32-chars',
+  REDIS_URL: 'redis://redis:6379',
 };
 
 describe('validateEnv', () => {
@@ -19,13 +20,22 @@ describe('validateEnv', () => {
     const env = validateEnv({
       ORDER_SERVICE_URL: validEnv.ORDER_SERVICE_URL,
       JWT_SECRET: validEnv.JWT_SECRET,
+      REDIS_URL: validEnv.REDIS_URL,
     });
     expect(env.GATEWAY_PORT).toBe(3000);
+    expect(env.RATE_LIMIT_MAX).toBe(100);
+    expect(env.RATE_LIMIT_WINDOW_SECONDS).toBe(60);
     expect(env.JWT_ISSUER).toBe('shopflow-gateway');
     expect(env.JWT_AUDIENCE).toBe('shopflow-api');
     expect(env.JWT_TTL_SECONDS).toBe(900);
     expect(env.DOWNSTREAM_TIMEOUT_MS).toBe(3_000);
     expect(env.NODE_ENV).toBe('development');
+  });
+
+  it('fails fast without a redis:// URL or with a zero rate limit', () => {
+    expect(() => validateEnv({ ...validEnv, REDIS_URL: undefined })).toThrow(/REDIS_URL/);
+    expect(() => validateEnv({ ...validEnv, REDIS_URL: 'http://redis:6379' })).toThrow(/REDIS_URL/);
+    expect(() => validateEnv({ ...validEnv, RATE_LIMIT_MAX: '0' })).toThrow(/RATE_LIMIT_MAX/);
   });
 
   it('strips trailing slashes from the downstream URL', () => {
