@@ -25,6 +25,7 @@ describe('validateEnv', () => {
     expect(env.GATEWAY_PORT).toBe(3000);
     expect(env.RATE_LIMIT_MAX).toBe(100);
     expect(env.RATE_LIMIT_WINDOW_SECONDS).toBe(60);
+    expect(env.IDEMPOTENCY_TTL_SECONDS).toBe(86_400);
     expect(env.JWT_ISSUER).toBe('shopflow-gateway');
     expect(env.JWT_AUDIENCE).toBe('shopflow-api');
     expect(env.JWT_TTL_SECONDS).toBe(900);
