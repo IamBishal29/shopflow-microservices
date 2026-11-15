@@ -2,10 +2,11 @@
 
 ## Current
 - Milestone: M3 Edge
-- Issue: #15 correlation ID + /orders proxy, PR #52 open (targets main).
-- Branch: feat/15-gateway-proxy (done; waiting for merge)
-- Next step: Syed merges PR #52, then `/next-task` picks up #16 (JWT at the gateway).
-  #51 (correlation ID into order.created) is small and can follow after #16/#17.
+- Issue: #16 JWT at the gateway, PR #54 open (targets main).
+- Branch: feat/16-gateway-jwt (done; waiting for merge)
+- Next step: Syed merges PR #54, then `/next-task` picks up #17 (rate limiting, Redis).
+  Small follow-ups in M3: #51 (correlation ID into order.created), #53 (customerId
+  from JWT sub).
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -71,6 +72,10 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   problem bodies passed through, header allowlist; e2e with a real fake order-service
   caught a timeout misclassification; verified live through the full saga
   (PR #52, learning note 15). Follow-up #51 created.
+- #16 JWT (Syed chose @nestjs/jwt + own guard, HS256, customerId later = #53): global
+  JwtAuthGuard (alg pinned, exp/iss/aud, sub required), @Public() for health + dev token,
+  POST /auth/token 404 outside development, 401 problem+json + WWW-Authenticate; e2e for
+  expired / forged / wrong aud / alg none; verified live (PR #54, learning note 16)
 
 ## Decisions waiting for Syed
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
@@ -78,6 +83,10 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   `PAYMENT_DATABASE_URL=postgresql://payments:payments@localhost:5432/payments`.
 - Please also add: `GATEWAY_PORT=3000`, `ORDER_SERVICE_URL=http://localhost:3001`,
   `DOWNSTREAM_TIMEOUT_MS=3000`.
+- And for #16: `.env.example` placeholder `JWT_SECRET=change-me-to-32+-random-chars`,
+  `JWT_ISSUER=shopflow-gateway`, `JWT_AUDIENCE=shopflow-api`, `JWT_TTL_SECONDS=900`;
+  in `.env` a real secret (`openssl rand -base64 48`) and `NODE_ENV=development` for
+  the dev token endpoint.
 - Optional follow-up: validateEnv is copied in 3 apps; extract a helper?
 - PR #52 is ~445 code lines (205 prod + 240 tests), over the cap; kept whole before the
   interview. OK, or split next time?
@@ -129,4 +138,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-14: #12 retry topics + DLQ (PR #47 merged)
 - 2026-11-14: #13 saga completion, PR #48 (merged)
 - 2026-11-15: #49 gateway scaffold, PR #50 (merged)
-- 2026-11-15: #15 gateway proxy + correlation ID, PR #52
+- 2026-11-15: #15 gateway proxy + correlation ID, PR #52 (merged)
+- 2026-11-15: #16 JWT auth, PR #54
