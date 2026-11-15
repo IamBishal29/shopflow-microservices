@@ -41,4 +41,8 @@ describe('api-gateway (e2e)', () => {
       correlationId: 'req-42',
     });
   });
+
+  it('hides the dev token endpoint outside development (NODE_ENV=test here)', async () => {
+    await request(app.getHttpServer()).post('/auth/token').send({ sub: 'c-42' }).expect(404);
+  });
 });

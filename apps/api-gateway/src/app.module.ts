@@ -2,6 +2,7 @@ import { MiddlewareConsumer, Module, NestModule, ValidationPipe } from '@nestjs/
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_PIPE } from '@nestjs/core';
 import { ProblemDetailsFilter } from '@shopflow/errors';
+import { AuthModule } from './auth/auth.module';
 import { validateEnv } from './config/env.validation';
 import { CorrelationIdMiddleware } from './correlation/correlation-id.middleware';
 import { HealthModule } from './health/health.module';
@@ -19,6 +20,7 @@ import { ProxyModule } from './proxy/proxy.module';
       // Real environment variables win over .env, so containers/K8s override local files.
       validate: validateEnv,
     }),
+    AuthModule,
     HealthModule,
     ProxyModule,
   ],
