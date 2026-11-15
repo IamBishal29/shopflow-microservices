@@ -2,11 +2,12 @@
 
 ## Current
 - Milestone: M3 Edge
-- Issue: #16 JWT at the gateway, PR #54 open (targets main).
-- Branch: feat/16-gateway-jwt (done; waiting for merge)
-- Next step: Syed merges PR #54, then `/next-task` picks up #17 (rate limiting, Redis).
-  Small follow-ups in M3: #51 (correlation ID into order.created), #53 (customerId
-  from JWT sub).
+- Issue: #17 rate limiting, PR #55 open (targets main).
+- Branch: feat/17-rate-limiting (done; waiting for merge)
+- Next step: Syed merges PR #55, then `/next-task`. Day 3 plan says #19 idempotency keys
+  next (reuses the gateway's Redis client), then #29 interview Q&A doc. Lowest-numbered
+  open M3 issue is #18 (response cache), which the plan puts after the interview.
+  Small follow-ups: #51, #53.
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -76,6 +77,11 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   JwtAuthGuard (alg pinned, exp/iss/aud, sub required), @Public() for health + dev token,
   POST /auth/token 404 outside development, 401 problem+json + WWW-Authenticate; e2e for
   expired / forged / wrong aud / alg none; verified live (PR #54, learning note 16)
+- #17 rate limiting (Syed chose @nestjs/throttler + own Redis storage, ioredis, fail
+  open): redis 8.8.4 in compose (no persistence), atomic Lua fixed window + block,
+  {hash-tag} keys, per JWT sub or IP, one budget across routes, 429 problem+json +
+  Retry-After, health skipped; verified live with 2 replicas sharing Redis and with Redis
+  stopped (~3 ms, fail open) (PR #55, learning note 17)
 
 ## Decisions waiting for Syed
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
@@ -87,6 +93,9 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   `JWT_ISSUER=shopflow-gateway`, `JWT_AUDIENCE=shopflow-api`, `JWT_TTL_SECONDS=900`;
   in `.env` a real secret (`openssl rand -base64 48`) and `NODE_ENV=development` for
   the dev token endpoint.
+- And for #17: `REDIS_URL=redis://localhost:6379`, `RATE_LIMIT_MAX=100`,
+  `RATE_LIMIT_WINDOW_SECONDS=60`.
+- Next pick: follow the Day 3 plan (#19 before #18), or strictly lowest-numbered (#18)?
 - Optional follow-up: validateEnv is copied in 3 apps; extract a helper?
 - PR #52 is ~445 code lines (205 prod + 240 tests), over the cap; kept whole before the
   interview. OK, or split next time?
@@ -117,6 +126,8 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - .env is not picked up by `start:*:prod` locally (services failed config validation);
   for live checks Claude passes ORDER_DATABASE_URL / PAYMENT_DATABASE_URL / KAFKA_BROKERS
   explicitly. Syed: check that .env has these keys.
+- Rate limiting: Lua script only verified live; automate with Testcontainers (#22).
+  Behind a load balancer set Express `trust proxy` or every client shares the LB's IP.
 - Gateway follow-ups: abort downstream call on client disconnect; circuit breaker (M5?).
 - Known limitation: unit prices come from the client (no catalogue, PRD out of scope);
   customerId comes from the body until JWT (#16).
@@ -139,4 +150,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-14: #13 saga completion, PR #48 (merged)
 - 2026-11-15: #49 gateway scaffold, PR #50 (merged)
 - 2026-11-15: #15 gateway proxy + correlation ID, PR #52 (merged)
-- 2026-11-15: #16 JWT auth, PR #54
+- 2026-11-15: #16 JWT auth, PR #54 (merged)
+- 2026-11-15: #17 rate limiting, PR #55

@@ -24,12 +24,12 @@ Requirements: Node.js 26 (see `.nvmrc`), pnpm 12, Docker.
 ```bash
 pnpm install
 cp .env.example .env          # local placeholders only
-docker compose up -d postgres postgres-init kafka kafka-init kafka-ui
-                              # Postgres (+ payments DB/role), Kafka (+ topics), UI :8080
+docker compose up -d postgres postgres-init kafka kafka-init kafka-ui redis
+                              # Postgres (+ payments DB/role), Kafka (+ topics), UI :8080, Redis
 pnpm prisma:deploy && pnpm prisma:deploy:payment   # apply both services' migrations
 pnpm start:order              # http://localhost:3001/health
 pnpm start:payment            # http://localhost:3002/health
-pnpm start:gateway            # http://localhost:3000/health (needs ORDER_SERVICE_URL, JWT_SECRET)
+pnpm start:gateway            # http://localhost:3000/health (needs ORDER_SERVICE_URL, JWT_SECRET, REDIS_URL)
 ```
 
 ## Demo the saga
