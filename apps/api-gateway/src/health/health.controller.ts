@@ -1,9 +1,12 @@
 import { Controller, Get } from '@nestjs/common';
 import { HealthCheck, HealthCheckResult, HealthCheckService } from '@nestjs/terminus';
+import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../auth/public.decorator';
 
 // Probes carry no credentials; health reveals nothing sensitive.
 @Public()
+// Probes run every few seconds from inside the cluster; they must never be throttled.
+@SkipThrottle()
 @Controller('health')
 export class HealthController {
   constructor(private readonly health: HealthCheckService) {}

@@ -3,12 +3,18 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
+import { REDIS } from '../src/redis/redis.module';
+import { redisStub } from './test-app';
 
 describe('api-gateway (e2e)', () => {
   let app: INestApplication<App>;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    // Real config from setup-env.ts; only the Redis connection is stubbed.
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(REDIS)
+      .useValue(redisStub())
+      .compile();
     app = moduleRef.createNestApplication<INestApplication<App>>();
     await app.init();
   });

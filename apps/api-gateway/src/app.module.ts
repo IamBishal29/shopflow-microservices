@@ -7,6 +7,7 @@ import { validateEnv } from './config/env.validation';
 import { CorrelationIdMiddleware } from './correlation/correlation-id.middleware';
 import { HealthModule } from './health/health.module';
 import { ProxyModule } from './proxy/proxy.module';
+import { RateLimitModule } from './rate-limit/rate-limit.module';
 
 /**
  * The single entry point for clients. Owns edge concerns only (routing, correlation ID,
@@ -20,7 +21,9 @@ import { ProxyModule } from './proxy/proxy.module';
       // Real environment variables win over .env, so containers/K8s override local files.
       validate: validateEnv,
     }),
+    // Order matters: guards run in registration order (auth first, then rate limit by user).
     AuthModule,
+    RateLimitModule,
     HealthModule,
     ProxyModule,
   ],
