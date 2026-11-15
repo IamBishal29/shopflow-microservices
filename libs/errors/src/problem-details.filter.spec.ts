@@ -1,5 +1,5 @@
 import { ArgumentsHost, Logger } from '@nestjs/common';
-import { OrderNotFoundError } from '../../orders/order.errors';
+import { ItemNotFoundError } from './fixtures';
 import { ProblemDetailsFilter } from './problem-details.filter';
 
 function fakeHost(headers: Record<string, string> = {}) {
@@ -28,13 +28,13 @@ describe('ProblemDetailsFilter', () => {
 
   it('writes problem+json with instance, timestamp and the status code', () => {
     const { host, response } = fakeHost();
-    filter.catch(new OrderNotFoundError('abc'), host);
+    filter.catch(new ItemNotFoundError('abc'), host);
 
     expect(response.status).toHaveBeenCalledWith(404);
     expect(response.type).toHaveBeenCalledWith('application/problem+json');
     expect(response.json).toHaveBeenCalledWith(
       expect.objectContaining({
-        code: 'ORDER_NOT_FOUND',
+        code: 'ITEM_NOT_FOUND',
         instance: '/orders/abc',
         timestamp: expect.any(String) as unknown,
       }),
@@ -43,7 +43,7 @@ describe('ProblemDetailsFilter', () => {
 
   it('echoes a well-formed correlation ID', () => {
     const { host, response } = fakeHost({ 'x-correlation-id': 'req-123' });
-    filter.catch(new OrderNotFoundError('abc'), host);
+    filter.catch(new ItemNotFoundError('abc'), host);
     expect(response.json).toHaveBeenCalledWith(
       expect.objectContaining({ correlationId: 'req-123' }),
     );
@@ -51,7 +51,7 @@ describe('ProblemDetailsFilter', () => {
 
   it('drops a correlation ID that is not safe to echo', () => {
     const { host, response } = fakeHost({ 'x-correlation-id': '<script>alert(1)</script>' });
-    filter.catch(new OrderNotFoundError('abc'), host);
+    filter.catch(new ItemNotFoundError('abc'), host);
     expect(response.json).toHaveBeenCalledWith(
       expect.not.objectContaining({ correlationId: expect.anything() as unknown }),
     );
@@ -66,7 +66,7 @@ describe('ProblemDetailsFilter', () => {
 
   it('does not log expected client errors as errors', () => {
     const { host } = fakeHost();
-    filter.catch(new OrderNotFoundError('abc'), host);
+    filter.catch(new ItemNotFoundError('abc'), host);
     expect(logError).not.toHaveBeenCalled();
   });
 });

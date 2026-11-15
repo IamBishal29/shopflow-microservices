@@ -4,7 +4,7 @@ import { APP_FILTER, APP_PIPE } from '@nestjs/core';
 import { DatabaseModule } from '@shopflow/database';
 import { KafkaModule } from '@shopflow/kafka';
 import { OutboxModule } from '@shopflow/outbox';
-import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
+import { ProblemDetailsFilter } from '@shopflow/errors';
 import { EnvironmentVariables, validateEnv } from './config/env.validation';
 import { HealthModule } from './health/health.module';
 import { OrdersModule } from './orders/orders.module';

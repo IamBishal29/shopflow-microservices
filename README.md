@@ -29,6 +29,7 @@ docker compose up -d postgres postgres-init kafka kafka-init kafka-ui
 pnpm prisma:deploy && pnpm prisma:deploy:payment   # apply both services' migrations
 pnpm start:order              # http://localhost:3001/health
 pnpm start:payment            # http://localhost:3002/health
+pnpm start:gateway            # http://localhost:3000/health (needs ORDER_SERVICE_URL)
 ```
 
 ## Demo the saga

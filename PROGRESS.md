@@ -1,18 +1,20 @@
 # Progress
 
 ## Current
-- Milestone: M2 Event backbone
-- Issue: #13 saga completion, PR #48 open (targets main). Day 2 plan complete.
-- Branch: feat/13-saga-completion (done; waiting for merge)
-- Next step: Syed merges PR #48, then `/next-task` picks up Day 3: #15 (api-gateway +
-  correlation ID, milestone M3).
+- Milestone: M3 Edge
+- Issue: #49 api-gateway scaffold (split from #15), PR #50 open (targets main).
+- Branch: feat/49-gateway-scaffold (done; waiting for merge)
+- Next step: Syed merges PR #50, then `/next-task` resumes #15 on a fresh branch from main:
+  correlation ID middleware + orders proxy via native fetch (AbortSignal.timeout ->
+  504, connection refused -> 502, downstream problem bodies passed through) + e2e with a
+  fake order-service on a random port.
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - Day 1: #2 config, #3 Prisma, #4 orders API, #5 error filter, #7 Kafka + KafkaJS module
 - Day 2: #8 contracts, #9 outbox, #41 + #42 + #10 payment-service, #11 idempotent consumers,
   #12 retries + DLQ, #13 saga completion
-- Day 3: #15 gateway + correlation ID, #16 JWT, #17 rate limiting, #19 idempotency keys,
+- Day 3: #49 gateway scaffold, #15 gateway + correlation ID, #16 JWT, #17 rate limiting, #19 idempotency keys,
   #29 interview Q&A doc
 - After the interview: #6, #14, #18, then M4-M6.
 
@@ -62,11 +64,18 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   PENDING -> PAID | PAYMENT_FAILED (conditional UPDATE); late results ignored, unknown
   order -> DLQ with claim rolled back; full saga verified live in ~3 s
   (PR #48, learning note 13)
+- #49 gateway scaffold (split from #15, Syed's choice; native fetch chosen for #15):
+  libs/errors (DomainError + problem details + filter moved from order-service),
+  apps/api-gateway :3000 with validated config, health (readiness ignores downstreams);
+  verified live (PR #50, learning note 14)
 
 ## Decisions waiting for Syed
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
   `PAYMENT_SERVICE_PORT=3002`,
   `PAYMENT_DATABASE_URL=postgresql://payments:payments@localhost:5432/payments`.
+- Please also add: `GATEWAY_PORT=3000`, `ORDER_SERVICE_URL=http://localhost:3001`,
+  `DOWNSTREAM_TIMEOUT_MS=3000`.
+- Optional follow-up: validateEnv is copied in 3 apps; extract a helper?
 - Made for #10: shared libs extracted; payments DB = same Postgres, own database
   and role; payment-service split into 3 sequential PRs.
 
@@ -109,4 +118,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-14: #10 payment consumer (PR #45 merged)
 - 2026-11-14: #11 idempotent consumers (PR #46 merged)
 - 2026-11-14: #12 retry topics + DLQ (PR #47 merged)
-- 2026-11-14: #13 saga completion, PR #48
+- 2026-11-14: #13 saga completion, PR #48 (merged)
+- 2026-11-15: #49 gateway scaffold, PR #50
