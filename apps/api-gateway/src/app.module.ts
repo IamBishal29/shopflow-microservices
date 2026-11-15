@@ -1,9 +1,11 @@
-import { Module, ValidationPipe } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, ValidationPipe } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_PIPE } from '@nestjs/core';
 import { ProblemDetailsFilter } from '@shopflow/errors';
 import { validateEnv } from './config/env.validation';
+import { CorrelationIdMiddleware } from './correlation/correlation-id.middleware';
 import { HealthModule } from './health/health.module';
+import { ProxyModule } from './proxy/proxy.module';
 
 /**
  * The single entry point for clients. Owns edge concerns only (routing, correlation ID,
@@ -18,6 +20,7 @@ import { HealthModule } from './health/health.module';
       validate: validateEnv,
     }),
     HealthModule,
+    ProxyModule,
   ],
   providers: [
     // Same RFC 9457 body as every ShopFlow service, so clients parse one error format.
@@ -32,4 +35,9 @@ import { HealthModule } from './health/health.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    // Every path, including health and unknown routes, so every response carries the ID.
+    consumer.apply(CorrelationIdMiddleware).forRoutes('{*path}');
+  }
+}
