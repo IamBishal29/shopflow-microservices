@@ -1,11 +1,11 @@
 # Progress
 
 ## Current
-- Milestone: M3 Edge
-- Issue: #61 ownership check on reads, PR #64 open (targets main). Last M3 issue.
-- Branch: feat/61-ownership-on-reads (done; waiting for merge)
-- Next step: Syed merges PR #64 and runs `pnpm prisma:deploy` (new index migration).
-  Then `/next-task`: M3 is complete; continue with M1 #6 / M2 #14.
+- Milestone: M1 Order service (M3 Edge complete)
+- Issue: #6 OpenAPI docs, PR #66 open (targets main). Last M1 issue.
+- Branch: feat/6-openapi-docs (done; waiting for merge)
+- Next step: Syed merges PR #66 (and runs `pnpm prisma:deploy` for #61's index if not
+  done). Then `/next-task`: M2 #14 notification-service.
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -109,6 +109,10 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   order-service reads `WHERE id AND customer_id`, other customer's order -> 404, missing
   identity -> 401; index (customer_id, created_at DESC, id DESC) replaces
   (customer_id, created_at). Not verified live (Docker down) (PR #64, learning note 24)
+- #6 OpenAPI (Syed chose: explicit decorators, order-service only): /docs + /docs-json,
+  shared ProblemDetails schema (problem+json) per route, response schemas `implements`
+  the domain types, e2e incl. DTO drift guard (validated fields == documented fields);
+  gateway docs = follow-up #65 (PR #66, learning note 25)
 
 ## Decisions waiting for Syed
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
@@ -130,6 +134,8 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   gateway (MISS, then HIT).
 - #56: after merging, `pnpm prisma:deploy`; then two POST /orders to :3001 with the same
   idempotency-key -> same id, one row in `outbox` for it.
+- #6 not checked live: `pnpm start:order`, open http://localhost:3001/docs.
+- #66 is ~316 lines in apps/ (decorators + ~100 test lines), over the cap; kept whole.
 - #61: after merging, `pnpm prisma:deploy`; then with dev tokens for c-1 and c-2, an
   order of c-1 read as c-2 -> 404, and `GET /orders` as c-2 doesn't list it.
 - order-service now answers 401 on GET /orders(/:id) without `x-customer-id`: direct
@@ -206,4 +212,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-16: #51 correlation ID into order.created, PR #60 (merged)
 - 2026-11-16: #53 customerId from JWT sub, PR #62 (merged); follow-up #61 created
 - 2026-11-16: #56 end-to-end idempotency, PR #63 (merged)
-- 2026-11-16: #61 ownership check on reads, PR #64
+- 2026-11-16: #61 ownership check on reads, PR #64 (merged)
+- 2026-11-16: #6 OpenAPI docs, PR #66; follow-up #65 (gateway docs)
