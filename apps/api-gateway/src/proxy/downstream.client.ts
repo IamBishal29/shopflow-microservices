@@ -1,5 +1,6 @@
 import { BadGatewayException, GatewayTimeoutException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { CUSTOMER_ID_HEADER } from '@shopflow/contracts';
 import { CORRELATION_HEADER } from '@shopflow/errors';
 import type { IncomingHttpHeaders } from 'node:http';
 import { EnvironmentVariables } from '../config/env.validation';
@@ -22,6 +23,11 @@ export interface DownstreamRequest {
   /** Path plus optional query string, built by the caller from validated parts. */
   readonly path: string;
   readonly headers: IncomingHttpHeaders;
+  /**
+   * The verified JWT `sub`, sent as x-customer-id: order-service scopes reads to it (#61).
+   * Never taken from client headers (not in the allowlist), so it cannot be spoofed.
+   */
+  readonly customerId: string;
   /** Already-parsed JSON body (Express body parser), re-serialised for the downstream. */
   readonly body?: unknown;
 }
@@ -53,7 +59,10 @@ export class DownstreamClient {
       // trickles bytes forever still ends at the deadline.
       const response = await fetch(url, {
         method: request.method,
-        headers: forwardedHeaders(request.headers),
+        headers: {
+          ...forwardedHeaders(request.headers),
+          [CUSTOMER_ID_HEADER]: request.customerId,
+        },
         body: hasBody ? JSON.stringify(request.body) : undefined,
         signal: deadline,
       });

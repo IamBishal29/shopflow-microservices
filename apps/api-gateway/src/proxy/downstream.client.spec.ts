@@ -13,7 +13,9 @@ const post: DownstreamRequest = {
     'x-correlation-id': 'req-1',
     cookie: 'session=secret',
     authorization: 'Bearer abc',
+    'x-customer-id': 'spoofed',
   },
+  customerId: 'c-1',
   body: { customerId: 'c-1' },
 };
 
@@ -24,7 +26,7 @@ describe('DownstreamClient', () => {
   afterEach(() => fetchMock.mockReset());
   afterAll(() => fetchMock.mockRestore());
 
-  it('forwards only allowlisted headers and the JSON body, with a deadline', async () => {
+  it('forwards only allowlisted headers, the JWT subject and the JSON body, with a deadline', async () => {
     fetchMock.mockResolvedValue(new Response('{}', { status: 201 }));
     await client.send(post);
 
@@ -33,6 +35,7 @@ describe('DownstreamClient', () => {
     expect(init?.headers).toEqual({
       'content-type': 'application/json',
       'x-correlation-id': 'req-1',
+      'x-customer-id': 'c-1', // from the token, never the client's header
     });
     expect(init?.body).toBe('{"customerId":"c-1"}');
     expect(init?.signal).toBeInstanceOf(AbortSignal);
