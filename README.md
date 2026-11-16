@@ -43,10 +43,11 @@ Requirements: Node.js 26 (see `.nvmrc`), pnpm 12, Docker. Bash (Git Bash on Wind
 pnpm install
 cp .env.example .env          # local placeholders; set a real JWT_SECRET (openssl rand -base64 48)
 docker compose up -d postgres postgres-init kafka kafka-init kafka-ui redis
-                              # Postgres (+ payments DB/role), Kafka (+ topics), UI :8080, Redis
-pnpm prisma:deploy && pnpm prisma:deploy:payment   # apply both services' migrations
+                              # Postgres (+ payments/notifications DBs and roles), Kafka (+ topics), UI :8080, Redis
+pnpm prisma:deploy && pnpm prisma:deploy:payment && pnpm prisma:deploy:notification
 pnpm start:order              # http://localhost:3001/health, API docs at :3001/docs
 pnpm start:payment            # http://localhost:3002/health
+pnpm start:notification       # http://localhost:3003/health (consumer arrives in #14)
 pnpm start:gateway            # http://localhost:3000/health (NODE_ENV=development for dev tokens)
 ```
 
