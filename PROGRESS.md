@@ -2,10 +2,10 @@
 
 ## Current
 - Milestone: M3 Edge
-- Issue: #53 customerId from the JWT sub, PR #62 open (targets main).
-- Branch: feat/53-customer-from-jwt (done; waiting for merge)
-- Next step: Syed merges PR #62. Then `/next-task`: remaining M3 issues #56 (end-to-end
-  idempotency), #61 (ownership check on reads).
+- Issue: #56 end-to-end idempotency, PR #63 open (targets main).
+- Branch: feat/56-end-to-end-idempotency (done; waiting for merge)
+- Next step: Syed merges PR #63 and runs `pnpm prisma:deploy` (new migration). Then
+  `/next-task`: last M3 issue #61 (ownership check on reads); then M1 #6 / M2 #14.
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -99,6 +99,11 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - #53 BOLA fix (Syed chose: gateway overwrites body): `withCustomerId(body, sub)` in the
   gateway, applied before the idempotency fingerprint; e2e for spoof + spoofed retry
   replay; INTERVIEW.md gaps updated; read-side gap filed as #61 (PR #62, learning note 22)
+- #56 end-to-end idempotency (Syed chose: column on orders, repeat returns existing):
+  migration `orders.idempotency_key` + UNIQUE(customer_id, idempotency_key); repository
+  lookup fast path + P2002 race -> winner's order (loser's outbox row rolled back);
+  201 + Idempotent-Replayed; gateway forwards the header; e2e for retry-after-504.
+  Migration not applied to a real DB yet (Docker down) (PR #63, learning note 23)
 
 ## Decisions waiting for Syed
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
@@ -118,6 +123,8 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - And for #18: `ORDER_CACHE_TTL_SECONDS=5`. Is 5 s staleness OK, or shorter/longer?
 - #18 not checked live: start Docker Desktop, then GET an order twice through the
   gateway (MISS, then HIT).
+- #56: after merging, `pnpm prisma:deploy`; then two POST /orders to :3001 with the same
+  idempotency-key -> same id, one row in `outbox` for it.
 - #53 not checked live: dev token for c-1, POST /orders with `"customerId":"c-999"` ->
   response shows customerId c-1.
 - `git push` hangs in Claude's shell (Git Credential Manager prompt?); #53 was pushed with
@@ -160,7 +167,6 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   explicitly. Syed: check that .env has these keys.
 - Rate limiting: Lua script only verified live; automate with Testcontainers (#22).
   Behind a load balancer set Express `trust proxy` or every client shares the LB's IP.
-- Idempotency gap until #56: a retry after a gateway 504 can duplicate an order.
 - Gateway follow-ups: abort downstream call on client disconnect; circuit breaker (M5?).
 - Known limitation: unit prices come from the client (no catalogue, PRD out of scope);
   customerId comes from the body until JWT (#16).
@@ -189,4 +195,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-15: #29 demo script + interview guide, PR #58 (merged)
 - 2026-11-16: #18 response cache, PR #59 (merged)
 - 2026-11-16: #51 correlation ID into order.created, PR #60 (merged)
-- 2026-11-16: #53 customerId from JWT sub, PR #62; follow-up #61 created
+- 2026-11-16: #53 customerId from JWT sub, PR #62 (merged); follow-up #61 created
+- 2026-11-16: #56 end-to-end idempotency, PR #63
