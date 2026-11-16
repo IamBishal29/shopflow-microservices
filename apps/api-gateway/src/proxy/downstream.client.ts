@@ -4,8 +4,17 @@ import { CORRELATION_HEADER } from '@shopflow/errors';
 import type { IncomingHttpHeaders } from 'node:http';
 import { EnvironmentVariables } from '../config/env.validation';
 
-/** Request headers the gateway passes on. Everything else (Host, cookies, hop-by-hop) stays here. */
-const FORWARDED_HEADERS = ['accept', 'content-type', CORRELATION_HEADER] as const;
+/**
+ * Request headers the gateway passes on. Everything else (Host, cookies, hop-by-hop) stays
+ * here. idempotency-key: order-service enforces it too, so a retry after a gateway 504
+ * cannot create a second order (#56).
+ */
+const FORWARDED_HEADERS = [
+  'accept',
+  'content-type',
+  CORRELATION_HEADER,
+  'idempotency-key',
+] as const;
 
 export interface DownstreamRequest {
   readonly baseUrl: string;

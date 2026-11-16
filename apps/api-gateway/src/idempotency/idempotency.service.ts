@@ -76,8 +76,8 @@ export class IdempotencyService {
     try {
       response = await action();
     } catch (error: unknown) {
-      // 502/504: outcome unknown or failed. Free the key so the client can retry.
-      // Known gap: after a 504 the order may exist downstream (follow-up issue).
+      // 502/504: outcome unknown or failed. Free the key so the client can retry. If the
+      // order was committed anyway, order-service sees the same key and returns it (#56).
       await this.release(redisKey);
       throw error;
     }

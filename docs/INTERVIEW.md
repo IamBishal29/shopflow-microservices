@@ -28,21 +28,21 @@ items are honest gaps with an issue number.
 
 ## Pattern map
 
-| Pattern                          | Where (built)                                    | Why                                                     | Trade-off                                                       |
-| -------------------------------- | ------------------------------------------------ | ------------------------------------------------------- | --------------------------------------------------------------- |
-| API gateway                      | `apps/api-gateway`                               | one door for auth, limits, routing                      | extra hop; can become a bottleneck or a distributed monolith    |
-| JWT auth (HS256, pinned)         | `api-gateway/src/auth`                           | stateless, any replica verifies                         | hard to revoke → short TTL                                      |
-| Rate limiting (Redis, Lua)       | `api-gateway/src/rate-limit`                     | protect shared capacity; global across replicas         | fixed window allows edge bursts; fail open                      |
-| Idempotency keys                 | `api-gateway/src/idempotency`                    | safe client retries of `POST`                           | gateway-only: duplicate possible after a 504 (#56); fail closed |
-| Correlation ID + timeouts        | `api-gateway/src/correlation`, `proxy`           | trace a request; fail fast instead of hanging           | not yet in events (#51)                                         |
-| Problem details (RFC 9457)       | `libs/errors`                                    | one error format everywhere                             | none worth mentioning                                           |
-| Transactional outbox             | `order-service`, `libs/outbox`                   | no dual write: DB and Kafka can't disagree              | extra table + relay; publish latency; at-least-once             |
-| Event contracts (zod, versioned) | `libs/contracts`                                 | explicit, validated schemas; `.v2` for breaking changes | shared lib couples deploys slightly                             |
-| Idempotent consumer              | `libs/database` `claimEvent`, `processed_events` | redeliveries do nothing                                 | table grows (no retention job yet)                              |
-| Retry topics + DLQ               | `libs/kafka`, ADR 0006                           | don't block a partition on one bad message              | retried messages lose per-key ordering                          |
-| Choreography saga                | consumers in both services                       | loose coupling, no orchestrator SPOF                    | flow is spread out, harder to see                               |
-| Forward-only state machine       | order-service `UPDATE … WHERE status='PENDING'`  | late/duplicate results can't move an order back         | compensation must be explicit                                   |
-| Database per service             | separate DBs + roles                             | independent schemas and scaling                         | no joins; consistency is eventual                               |
+| Pattern                          | Where (built)                                    | Why                                                     | Trade-off                                                                  |
+| -------------------------------- | ------------------------------------------------ | ------------------------------------------------------- | -------------------------------------------------------------------------- |
+| API gateway                      | `apps/api-gateway`                               | one door for auth, limits, routing                      | extra hop; can become a bottleneck or a distributed monolith               |
+| JWT auth (HS256, pinned)         | `api-gateway/src/auth`                           | stateless, any replica verifies                         | hard to revoke → short TTL                                                 |
+| Rate limiting (Redis, Lua)       | `api-gateway/src/rate-limit`                     | protect shared capacity; global across replicas         | fixed window allows edge bursts; fail open                                 |
+| Idempotency keys                 | `api-gateway/src/idempotency`                    | safe client retries of `POST`                           | Redis at the edge + UNIQUE(customer_id, key) in order-service; fail closed |
+| Correlation ID + timeouts        | `api-gateway/src/correlation`, `proxy`           | trace a request; fail fast instead of hanging           | not yet in events (#51)                                                    |
+| Problem details (RFC 9457)       | `libs/errors`                                    | one error format everywhere                             | none worth mentioning                                                      |
+| Transactional outbox             | `order-service`, `libs/outbox`                   | no dual write: DB and Kafka can't disagree              | extra table + relay; publish latency; at-least-once                        |
+| Event contracts (zod, versioned) | `libs/contracts`                                 | explicit, validated schemas; `.v2` for breaking changes | shared lib couples deploys slightly                                        |
+| Idempotent consumer              | `libs/database` `claimEvent`, `processed_events` | redeliveries do nothing                                 | table grows (no retention job yet)                                         |
+| Retry topics + DLQ               | `libs/kafka`, ADR 0006                           | don't block a partition on one bad message              | retried messages lose per-key ordering                                     |
+| Choreography saga                | consumers in both services                       | loose coupling, no orchestrator SPOF                    | flow is spread out, harder to see                                          |
+| Forward-only state machine       | order-service `UPDATE … WHERE status='PENDING'`  | late/duplicate results can't move an order back         | compensation must be explicit                                              |
+| Database per service             | separate DBs + roles                             | independent schemas and scaling                         | no joins; consistency is eventual                                          |
 
 ## Questions and short answers
 
@@ -143,8 +143,10 @@ items are honest gaps with an issue number.
     user.
 25. **Is idempotency at the gateway enough?** No. If order-service commits but answers
     after the gateway's deadline, the gateway returns 504 and frees the key, and a retry
-    duplicates the order. The owner of the data must enforce the key with a unique column
-    in the same transaction (#56).
+    would duplicate the order. So the gateway forwards the key and order-service stores it
+    in `UNIQUE(customer_id, idempotency_key)`, in the same transaction as the order and
+    its outbox row. A repeat returns the existing order; a race loser hits the
+    constraint, rolls back and returns the winner's order (#56).
 26. **How do errors look to clients?** RFC 9457 problem+json from one global filter:
     stable `code`, `status`, `title`, `correlationId`. 5xx responses never expose internal
     details (URLs, SQL); those go to the logs.
@@ -201,7 +203,6 @@ items are honest gaps with an issue number.
 - `customerId` is bound to the JWT `sub` at the gateway only: order-service still trusts
   the body, so it must be reachable only through the gateway (NetworkPolicy, M5).
 - No ownership check on reads yet (#61): any logged-in user can `GET /orders/:id` for any id.
-- Gateway-only idempotency: a retry after a 504 can duplicate an order until #56.
 - No structured JSON logging (nestjs-pino), no OpenTelemetry, no Swagger yet; no
   Dockerfiles or Kubernetes manifests yet (M4-M6).
 - No Testcontainers integration tests yet (#22): the outbox, the Lua rate-limit script

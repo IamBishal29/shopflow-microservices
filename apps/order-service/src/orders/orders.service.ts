@@ -3,7 +3,7 @@ import { PaymentFailedV1, PaymentSucceededV1, TOPICS } from '@shopflow/contracts
 import { NewOrder, Order, PageRequest, PaymentOutcome } from './order';
 import { orderCreatedEvent } from './order-events';
 import { OrderNotFoundError, OrderTotalTooLargeError } from './order.errors';
-import { OrdersRepository, PaymentResultOutcome } from './orders.repository';
+import { CreatedOrder, OrdersRepository, PaymentResultOutcome } from './orders.repository';
 
 /** Postgres INTEGER upper bound; orders.total_cents is INTEGER. */
 const MAX_TOTAL_CENTS = 2_147_483_647;
@@ -23,8 +23,13 @@ export class OrdersService {
   /**
    * Computes the total server-side; a client-supplied total is never trusted.
    * `correlationId` (the request's) is stamped on order.created so the saga can be traced.
+   * With an `idempotencyKey`, a repeat returns the existing order instead of a new one.
    */
-  async create(command: CreateOrderCommand, correlationId: string): Promise<Order> {
+  async create(
+    command: CreateOrderCommand,
+    correlationId: string,
+    idempotencyKey?: string,
+  ): Promise<CreatedOrder> {
     const totalCents = command.items.reduce(
       (sum, item) => sum + item.quantity * item.unitPriceCents,
       0,
@@ -32,8 +37,10 @@ export class OrdersService {
     if (totalCents > MAX_TOTAL_CENTS) {
       throw new OrderTotalTooLargeError(MAX_TOTAL_CENTS);
     }
-    return this.orders.create({ ...command, totalCents }, (order) =>
-      orderCreatedEvent(order, correlationId),
+    return this.orders.create(
+      { ...command, totalCents },
+      (order) => orderCreatedEvent(order, correlationId),
+      idempotencyKey,
     );
   }
 

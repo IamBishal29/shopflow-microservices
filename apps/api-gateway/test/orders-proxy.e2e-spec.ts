@@ -78,6 +78,8 @@ describe('api-gateway /orders proxy (e2e)', () => {
     expect(seen).toMatchObject({ method: 'POST', url: '/orders' });
     expect(JSON.parse(seen.body ?? '')).toEqual({ currency: 'EUR', customerId: 'c-42' });
     expect(seen.headers?.['x-correlation-id']).toBe('trace-123');
+    // order-service enforces the key too (exactly-once even after a gateway timeout).
+    expect(seen.headers?.['idempotency-key']).toBe('proxy-test-1');
     expect(seen.headers?.cookie).toBeUndefined();
     // Auth terminates at the gateway; the token is not passed on.
     expect(seen.headers?.authorization).toBeUndefined();
