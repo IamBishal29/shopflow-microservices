@@ -1,0 +1,29 @@
+# Build context for the root Dockerfile. Smaller context = faster builds, and secrets or
+# local state can never be copied into an image layer by accident.
+
+# Secrets and local config: never in an image (config comes from the environment).
+.env
+.env.*
+**/*.pem
+**/*.key
+
+# Rebuilt inside the image
+node_modules
+**/node_modules
+dist
+apps/*/src/generated
+
+# Not needed to build, and would bust the COPY . cache on every edit
+.git
+.github
+.claude
+.vscode
+.idea
+docs
+coverage
+**/*.log
+*.md
+**/*.spec.ts
+apps/*/test
+Dockerfile
+.dockerignore
