@@ -19,9 +19,9 @@ actually handle requests.
 
 1. **Routes:** the spec is built from the registered controllers, so it can't list an
    endpoint that doesn't exist, or miss one.
-2. **Types:** response schemas `implements` the domain types (`OrderResponse implements
-Order`, `ProblemDetailsSchema implements ProblemDetails`). A new required domain field
-   stops the build until the docs have it.
+2. **Types:** response schemas implement the domain types (`OrderResponse` implements
+   `Order`, `ProblemDetailsSchema` implements `ProblemDetails`). A new required domain
+   field stops the build until the docs have it.
 3. **Validation rules:** an e2e test compares each DTO's documented properties with the
    ones class-validator enforces. Deleting one `@ApiProperty` makes it fail and name the
    field (checked by hand while building this).
