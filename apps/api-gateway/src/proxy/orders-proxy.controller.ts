@@ -12,6 +12,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 import type { RequestWithUser } from '../auth/authenticated-user';
+import { OrderCacheService } from '../cache/order-cache.service';
 import { EnvironmentVariables } from '../config/env.validation';
 import { requestFingerprint } from '../idempotency/fingerprint';
 import { IdempotencyUnavailableError } from '../idempotency/idempotency.errors';
@@ -30,6 +31,7 @@ export class OrdersProxyController {
   constructor(
     private readonly downstream: DownstreamClient,
     private readonly idempotency: IdempotencyService,
+    private readonly cache: OrderCacheService,
     config: ConfigService<EnvironmentVariables, true>,
   ) {
     this.baseUrl = config.get('ORDER_SERVICE_URL', { infer: true });
@@ -80,20 +82,26 @@ export class OrdersProxyController {
     reply(res, result);
   }
 
+  /** Cache-aside in Redis (short TTL): status may lag the saga by up to the TTL. */
   @Get(':id')
   async findById(
     // Validated here so the downstream path is built only from a UUID (no `..` tricks).
     @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: Request,
+    @Req() req: RequestWithUser,
     @Res() res: Response,
   ): Promise<void> {
-    const result = await this.downstream.send({
-      baseUrl: this.baseUrl,
-      method: 'GET',
-      path: `/orders/${id}`,
-      headers: req.headers,
-    });
-    reply(res, result);
+    const sub = req.user?.sub;
+    if (!sub) throw new UnauthorizedException(); // unreachable: the JWT guard ran first
+    const { response, hit } = await this.cache.getOrLoad(sub, id, () =>
+      this.downstream.send({
+        baseUrl: this.baseUrl,
+        method: 'GET',
+        path: `/orders/${id}`,
+        headers: req.headers,
+      }),
+    );
+    res.setHeader('X-Cache', hit ? 'HIT' : 'MISS');
+    reply(res, response);
   }
 }
 

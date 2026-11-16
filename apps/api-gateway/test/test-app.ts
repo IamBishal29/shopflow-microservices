@@ -8,11 +8,13 @@ import { AppModule } from '../src/app.module';
 import { REDIS } from '../src/redis/redis.module';
 
 /**
- * Stand-in for ioredis: every command fails, so the rate limiter fails open and e2e tests
- * never need a Redis server. Rate-limit e2e tests swap the storage instead.
+ * Stand-in for ioredis: every command fails, so the rate limiter and order cache fail open
+ * and e2e tests never need a Redis server. Rate-limit e2e tests swap the storage instead.
  */
 export const redisStub = () => ({
   eval: () => Promise.reject(new Error('redis stub: not connected')),
+  get: () => Promise.reject(new Error('redis stub: not connected')),
+  set: () => Promise.reject(new Error('redis stub: not connected')),
   disconnect: () => undefined,
 });
 
@@ -42,6 +44,7 @@ export async function createGateway(
     RATE_LIMIT_MAX: 100,
     RATE_LIMIT_WINDOW_SECONDS: 60,
     IDEMPOTENCY_TTL_SECONDS: 86_400,
+    ORDER_CACHE_TTL_SECONDS: 5,
     ...overrides,
   };
   let builder = Test.createTestingModule({ imports: [AppModule] })

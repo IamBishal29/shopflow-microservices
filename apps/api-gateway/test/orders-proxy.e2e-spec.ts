@@ -3,7 +3,7 @@ import { AddressInfo } from 'node:net';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { FakeRedis } from '../src/idempotency/fake-redis';
+import { FakeRedis } from '../src/redis/fake-redis';
 import { createGateway, tokenFor } from './test-app';
 
 const ORDER_ID = '0b8f6c1e-4a2d-4c3b-9f1e-2d7a5b6c8e90';

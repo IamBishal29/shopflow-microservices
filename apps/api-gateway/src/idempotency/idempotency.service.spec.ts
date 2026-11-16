@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Redis } from 'ioredis';
 import { EnvironmentVariables } from '../config/env.validation';
 import type { DownstreamResponse } from '../proxy/downstream.client';
-import { FakeRedis } from './fake-redis';
+import { FakeRedis } from '../redis/fake-redis';
 import { requestFingerprint } from './fingerprint';
 import {
   IdempotencyKeyInUseError,

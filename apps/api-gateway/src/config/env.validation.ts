@@ -118,6 +118,17 @@ export class EnvironmentVariables {
   @Min(60)
   @Max(604_800)
   readonly IDEMPOTENCY_TTL_SECONDS: number = 86_400;
+
+  /**
+   * How long GET /orders/:id answers are served from Redis. This is the maximum staleness:
+   * an order that turns PAID may still read PENDING for up to this long. Keep it short.
+   */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(300)
+  readonly ORDER_CACHE_TTL_SECONDS: number = 5;
 }
 
 /**
