@@ -9,7 +9,7 @@ import { setupOpenApi } from '../src/openapi/setup-openapi';
 /** Fakes for Kafka so e2e tests never need (or wait for) a broker. */
 export const kafkaFakes = {
   producer: { send: jest.fn(), onModuleInit: jest.fn(), onApplicationShutdown: jest.fn() },
-  consumer: { run: jest.fn(), onModuleDestroy: jest.fn() },
+  consumer: { runInBackground: jest.fn(), onModuleDestroy: jest.fn() },
 };
 
 /** The outbox relay polls Postgres on a timer; e2e tests check HTTP behaviour only. */

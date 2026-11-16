@@ -4,7 +4,7 @@ import { ContractViolationError } from '@shopflow/contracts';
 import { ConsumerSubscription, IncomingMessage, KafkaConsumerService } from '@shopflow/kafka';
 import { EnvironmentVariables } from '../config/env.validation';
 import { orderCreated } from './fixtures';
-import { OrderCreatedConsumer, START_RETRY_MS } from './order-created.consumer';
+import { OrderCreatedConsumer } from './order-created.consumer';
 import { PaymentsService } from './payments.service';
 
 const message = (value: string | null): IncomingMessage => ({
@@ -17,7 +17,7 @@ const message = (value: string | null): IncomingMessage => ({
 });
 
 function setup() {
-  const kafka = { run: jest.fn<Promise<void>, [ConsumerSubscription]>() };
+  const kafka = { runInBackground: jest.fn<void, [ConsumerSubscription]>() };
   const payments = { handleOrderCreated: jest.fn().mockResolvedValue(null) };
   const values: Record<string, unknown> = {
     KAFKA_GROUP_ID: 'payment-service',
@@ -40,11 +40,10 @@ describe('OrderCreatedConsumer', () => {
   });
   afterAll(() => jest.restoreAllMocks());
 
-  it('subscribes the payment-service group to order.created.v1 with the configured retries', async () => {
+  it('subscribes the payment-service group to order.created.v1 with the configured retries', () => {
     const { kafka, consumer } = setup();
     consumer.onApplicationBootstrap();
-    await Promise.resolve();
-    expect(kafka.run).toHaveBeenCalledWith(
+    expect(kafka.runInBackground).toHaveBeenCalledWith(
       expect.objectContaining({
         groupId: 'payment-service',
         topics: ['order.created.v1'],
@@ -53,11 +52,10 @@ describe('OrderCreatedConsumer', () => {
     );
   });
 
-  it('treats contract violations as permanent (DLQ at once) and other errors as transient', async () => {
+  it('treats contract violations as permanent (DLQ at once) and other errors as transient', () => {
     const { kafka, consumer } = setup();
     consumer.onApplicationBootstrap();
-    await Promise.resolve();
-    const isPermanent = kafka.run.mock.calls[0]?.[0].isPermanent;
+    const isPermanent = kafka.runInBackground.mock.calls[0]?.[0].isPermanent;
     expect(isPermanent?.(new ContractViolationError('order.created.v1', ['x']))).toBe(true);
     expect(isPermanent?.(new Error('db down'))).toBe(false);
   });
@@ -83,23 +81,5 @@ describe('OrderCreatedConsumer', () => {
     await expect(consumer.handle(message(JSON.stringify(orderCreated())))).rejects.toThrow(
       'db down',
     );
-  });
-
-  it('keeps retrying to start while Kafka is unreachable, and stops on shutdown', async () => {
-    jest.useFakeTimers();
-    try {
-      const { kafka, consumer } = setup();
-      kafka.run.mockRejectedValue(new Error('ECONNREFUSED'));
-
-      consumer.onApplicationBootstrap();
-      await jest.advanceTimersByTimeAsync(START_RETRY_MS);
-      expect(kafka.run).toHaveBeenCalledTimes(2);
-
-      consumer.onModuleDestroy();
-      await jest.advanceTimersByTimeAsync(START_RETRY_MS * 3);
-      expect(kafka.run).toHaveBeenCalledTimes(2);
-    } finally {
-      jest.useRealTimers();
-    }
   });
 });

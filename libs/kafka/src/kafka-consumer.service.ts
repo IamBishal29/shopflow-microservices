@@ -34,6 +34,9 @@ export interface ConsumerSubscription {
   readonly retry?: RetryPolicy;
 }
 
+/** How long runInBackground waits before trying to start again while Kafka is down. */
+export const START_RETRY_MS = 5_000;
+
 /** Thrown inside a retry wait when the service shuts down; the message is redelivered later. */
 class ConsumerStoppingError extends Error {
   override readonly name = 'ConsumerStoppingError';
@@ -55,6 +58,7 @@ class ConsumerStoppingError extends Error {
 export class KafkaConsumerService implements OnModuleDestroy {
   private readonly logger = new Logger(KafkaConsumerService.name);
   private readonly consumers: Consumer[] = [];
+  private readonly startTimers = new Set<NodeJS.Timeout>();
   private stopping = false;
 
   constructor(
@@ -84,11 +88,40 @@ export class KafkaConsumerService implements OnModuleDestroy {
   }
 
   /**
+   * Starts the subscription without blocking the caller, so the service boots (and serves
+   * health checks) while Kafka is down. Retries every `startRetryMs` until it is consuming
+   * or the service shuts down. Call it from onApplicationBootstrap.
+   */
+  runInBackground(subscription: ConsumerSubscription, startRetryMs = START_RETRY_MS): void {
+    const topics = subscription.topics.join(', ');
+    const attemptStart = async (): Promise<void> => {
+      try {
+        await this.run(subscription);
+        this.logger.log(`Consuming ${topics} as ${subscription.groupId}`);
+      } catch (error) {
+        if (this.stopping) return;
+        const { message } = describeError(error);
+        this.logger.warn(
+          `Consumer for ${topics} did not start, retry in ${startRetryMs} ms: ${message}`,
+        );
+        const timer = setTimeout(() => {
+          this.startTimers.delete(timer);
+          void attemptStart();
+        }, startRetryMs);
+        this.startTimers.add(timer);
+      }
+    };
+    void attemptStart();
+  }
+
+  /**
    * Runs first during shutdown: stop fetching, let in-flight handlers finish (retry waits
    * are cut short), and leave the groups cleanly while the producer and DB are still open.
    */
   async onModuleDestroy(): Promise<void> {
     this.stopping = true;
+    this.startTimers.forEach(clearTimeout);
+    this.startTimers.clear();
     await Promise.all(this.consumers.map((consumer) => consumer.disconnect()));
   }
 

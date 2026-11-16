@@ -1,6 +1,11 @@
 import { Logger } from '@nestjs/common';
 import { EachMessagePayload, IHeaders, Kafka } from 'kafkajs';
-import { IncomingMessage, KafkaConsumerService, nextOffset } from './kafka-consumer.service';
+import {
+  IncomingMessage,
+  KafkaConsumerService,
+  nextOffset,
+  START_RETRY_MS,
+} from './kafka-consumer.service';
 import { KafkaProducerService, OutgoingMessage } from './kafka-producer.service';
 import { RetryPolicy } from './retry-policy';
 
@@ -225,6 +230,56 @@ describe('KafkaConsumerService', () => {
     await service.onModuleDestroy();
     expect(main.disconnect).toHaveBeenCalled();
     expect(retry.disconnect).toHaveBeenCalled();
+  });
+
+  describe('runInBackground', () => {
+    function backgroundSetup() {
+      const consumer = fakeConsumer();
+      consumer.connect.mockRejectedValue(new Error('ECONNREFUSED'));
+      const kafka = { consumer: jest.fn(() => consumer) };
+      const service = new KafkaConsumerService(
+        kafka as unknown as Kafka,
+        {} as unknown as KafkaProducerService,
+      );
+      const subscribe = () =>
+        service.runInBackground({ groupId: 'g', topics: ['t'], handle: jest.fn() });
+      return { consumer, service, subscribe };
+    }
+
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it('returns at once and keeps retrying the start while Kafka is unreachable', async () => {
+      const { consumer, subscribe } = backgroundSetup();
+      subscribe(); // does not throw or block: the service boots while Kafka is down
+      await jest.advanceTimersByTimeAsync(0);
+      expect(consumer.connect).toHaveBeenCalledTimes(2); // main + retry consumer
+
+      await jest.advanceTimersByTimeAsync(START_RETRY_MS);
+      expect(consumer.connect).toHaveBeenCalledTimes(4);
+    });
+
+    it('starts consuming once Kafka is back', async () => {
+      const { consumer, subscribe } = backgroundSetup();
+      subscribe();
+      await jest.advanceTimersByTimeAsync(0);
+      consumer.connect.mockResolvedValue(undefined);
+
+      await jest.advanceTimersByTimeAsync(START_RETRY_MS);
+      expect(consumer.run).toHaveBeenCalledTimes(2);
+      await jest.advanceTimersByTimeAsync(START_RETRY_MS * 3);
+      expect(consumer.connect).toHaveBeenCalledTimes(4); // no further attempts
+    });
+
+    it('stops retrying on shutdown', async () => {
+      const { consumer, service, subscribe } = backgroundSetup();
+      subscribe();
+      await jest.advanceTimersByTimeAsync(0);
+      await service.onModuleDestroy();
+
+      await jest.advanceTimersByTimeAsync(START_RETRY_MS * 3);
+      expect(consumer.connect).toHaveBeenCalledTimes(2);
+    });
   });
 
   it('computes the next offset without losing precision on large offsets', () => {
