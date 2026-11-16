@@ -18,7 +18,7 @@ const message = (topic: string, value: string | null): IncomingMessage => ({
 });
 
 function setup() {
-  const kafka = { run: jest.fn<Promise<void>, [ConsumerSubscription]>() };
+  const kafka = { runInBackground: jest.fn<void, [ConsumerSubscription]>() };
   const orders = { handlePaymentResult: jest.fn().mockResolvedValue({ result: 'applied' }) };
   const values: Record<string, unknown> = {
     KAFKA_GROUP_ID: 'order-service',
@@ -38,8 +38,8 @@ async function subscription() {
   const ctx = setup();
   ctx.consumer.onApplicationBootstrap();
   await Promise.resolve();
-  const sub = ctx.kafka.run.mock.calls[0]?.[0];
-  if (!sub) throw new Error('run was not called');
+  const sub = ctx.kafka.runInBackground.mock.calls[0]?.[0];
+  if (!sub) throw new Error('runInBackground was not called');
   return { ...ctx, sub };
 }
 

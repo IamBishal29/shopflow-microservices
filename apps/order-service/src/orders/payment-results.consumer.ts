@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   ContractViolationError,
@@ -12,60 +12,37 @@ import { DomainError } from '@shopflow/errors';
 import { EnvironmentVariables } from '../config/env.validation';
 import { OrdersService } from './orders.service';
 
-export const START_RETRY_MS = 5_000;
-
 /**
  * Thin Kafka handler for payment.succeeded.v1 and payment.failed.v1: decode, validate,
  * delegate to OrdersService. Invalid payloads and domain errors (unknown order) can never
  * succeed, so they go to the DLQ at once; anything else is retried by libs/kafka.
  */
 @Injectable()
-export class PaymentResultsConsumer implements OnApplicationBootstrap, OnModuleDestroy {
-  private readonly logger = new Logger(PaymentResultsConsumer.name);
-  private retryTimer: NodeJS.Timeout | undefined;
-  private stopped = false;
-
+export class PaymentResultsConsumer implements OnApplicationBootstrap {
   constructor(
     private readonly consumer: KafkaConsumerService,
     private readonly orders: OrdersService,
     private readonly config: ConfigService<EnvironmentVariables, true>,
   ) {}
 
-  /** Starts in the background so the service boots (and serves HTTP) while Kafka is down. */
+  /** Background start: the service boots (and serves HTTP) while Kafka is down. */
   onApplicationBootstrap(): void {
-    void this.start();
-  }
-
-  onModuleDestroy(): void {
-    this.stopped = true;
-    clearTimeout(this.retryTimer);
+    this.consumer.runInBackground({
+      groupId: this.config.get('KAFKA_GROUP_ID', { infer: true }),
+      topics: [TOPICS.paymentSucceeded, TOPICS.paymentFailed],
+      handle: (message) => this.handle(message),
+      isPermanent: (error) =>
+        error instanceof ContractViolationError || error instanceof DomainError,
+      retry: {
+        ...DEFAULT_RETRY_POLICY,
+        maxAttempts: this.config.get('CONSUMER_MAX_ATTEMPTS', { infer: true }),
+        baseDelayMs: this.config.get('CONSUMER_RETRY_BASE_MS', { infer: true }),
+      },
+    });
   }
 
   async handle(message: IncomingMessage): Promise<void> {
     await this.orders.handlePaymentResult(decode(message));
-  }
-
-  private async start(): Promise<void> {
-    try {
-      await this.consumer.run({
-        groupId: this.config.get('KAFKA_GROUP_ID', { infer: true }),
-        topics: [TOPICS.paymentSucceeded, TOPICS.paymentFailed],
-        handle: (message) => this.handle(message),
-        isPermanent: (error) =>
-          error instanceof ContractViolationError || error instanceof DomainError,
-        retry: {
-          ...DEFAULT_RETRY_POLICY,
-          maxAttempts: this.config.get('CONSUMER_MAX_ATTEMPTS', { infer: true }),
-          baseDelayMs: this.config.get('CONSUMER_RETRY_BASE_MS', { infer: true }),
-        },
-      });
-      this.logger.log(`Consuming ${TOPICS.paymentSucceeded}, ${TOPICS.paymentFailed}`);
-    } catch (error) {
-      if (this.stopped) return;
-      const reason = error instanceof Error ? error.message : String(error);
-      this.logger.warn(`Kafka consumer did not start, retrying in ${START_RETRY_MS} ms: ${reason}`);
-      this.retryTimer = setTimeout(() => void this.start(), START_RETRY_MS);
-    }
   }
 }
 
