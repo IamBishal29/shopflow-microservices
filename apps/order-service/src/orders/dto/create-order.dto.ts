@@ -32,7 +32,10 @@ export class CreateOrderItemDto {
 
 /** Input for POST /orders. There is deliberately no `totalCents` or `status`: the server owns them. */
 export class CreateOrderDto {
-  /** Until JWT auth (#16) the caller names the customer; then it comes from the token. */
+  /**
+   * Set by api-gateway from the JWT `sub` (client values are overwritten there). Trusted
+   * because order-service must only be reachable through the gateway (NetworkPolicy in K8s).
+   */
   @IsString()
   @Length(1, 64)
   readonly customerId!: string;

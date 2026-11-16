@@ -59,6 +59,14 @@ describe('api-gateway idempotency keys on POST /orders (e2e)', () => {
     expect(downstream.creates).toBe(1);
   });
 
+  it('treats a retry with a different spoofed customerId as the same request', async () => {
+    await createOrder('key-spoof', { ...ORDER, customerId: 'victim-1' }).expect(201);
+    await createOrder('key-spoof', { ...ORDER, customerId: 'victim-2' })
+      .expect(201)
+      .expect('idempotent-replayed', 'true');
+    expect(downstream.creates).toBe(1);
+  });
+
   it('requires an Idempotency-Key header (400 problem+json)', async () => {
     const res = await createOrder(undefined).expect(400);
     expect(res.body).toMatchObject({ code: 'BAD_REQUEST' });

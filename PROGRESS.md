@@ -2,10 +2,10 @@
 
 ## Current
 - Milestone: M3 Edge
-- Issue: #51 correlation ID into order.created, PR #60 open (targets main).
-- Branch: feat/51-correlation-id-into-events (done; waiting for merge)
-- Next step: Syed merges PR #60. Then `/next-task`: remaining M3 issues #53 (customerId
-  from JWT), #56 (end-to-end idempotency).
+- Issue: #53 customerId from the JWT sub, PR #62 open (targets main).
+- Branch: feat/53-customer-from-jwt (done; waiting for merge)
+- Next step: Syed merges PR #62. Then `/next-task`: remaining M3 issues #56 (end-to-end
+  idempotency), #61 (ownership check on reads).
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -96,6 +96,9 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   controller), OrdersService.create(command, correlationId) stamps it on order.created;
   payment-service already copied it to payment.* events, so one ID spans the saga.
   Not verified live (Docker down) (PR #60, learning note 21)
+- #53 BOLA fix (Syed chose: gateway overwrites body): `withCustomerId(body, sub)` in the
+  gateway, applied before the idempotency fingerprint; e2e for spoof + spoofed retry
+  replay; INTERVIEW.md gaps updated; read-side gap filed as #61 (PR #62, learning note 22)
 
 ## Decisions waiting for Syed
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
@@ -115,6 +118,11 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - And for #18: `ORDER_CACHE_TTL_SECONDS=5`. Is 5 s staleness OK, or shorter/longer?
 - #18 not checked live: start Docker Desktop, then GET an order twice through the
   gateway (MISS, then HIT).
+- #53 not checked live: dev token for c-1, POST /orders with `"customerId":"c-999"` ->
+  response shows customerId c-1.
+- `git push` hangs in Claude's shell (Git Credential Manager prompt?); #53 was pushed with
+  `git -c credential.helper= -c "credential.helper=!gh auth git-credential" push`.
+  Check GCM on your side, or keep that workaround.
 - #51 not checked live: POST /orders via the gateway with `x-correlation-id: demo-1`;
   kafbat UI should show demo-1 on order.created and payment.succeeded.
 - Docker Desktop did not start from Claude's shell; please start it before the next
@@ -180,4 +188,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-15: #19 idempotency keys, PR #57 (merged)
 - 2026-11-15: #29 demo script + interview guide, PR #58 (merged)
 - 2026-11-16: #18 response cache, PR #59 (merged)
-- 2026-11-16: #51 correlation ID into order.created, PR #60
+- 2026-11-16: #51 correlation ID into order.created, PR #60 (merged)
+- 2026-11-16: #53 customerId from JWT sub, PR #62; follow-up #61 created

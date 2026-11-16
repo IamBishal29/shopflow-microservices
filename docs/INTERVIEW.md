@@ -198,8 +198,9 @@ items are honest gaps with an issue number.
 ## Known gaps (say them before they're found)
 
 - notification-service is not built yet (#14).
-- The correlation ID isn't carried into Kafka events yet (#51); `customerId` still comes
-  from the request body, not the JWT `sub` (#53).
+- `customerId` is bound to the JWT `sub` at the gateway only: order-service still trusts
+  the body, so it must be reachable only through the gateway (NetworkPolicy, M5).
+- No ownership check on reads yet (#61): any logged-in user can `GET /orders/:id` for any id.
 - Gateway-only idempotency: a retry after a 504 can duplicate an order until #56.
 - No structured JSON logging (nestjs-pino), no OpenTelemetry, no Swagger yet; no
   Dockerfiles or Kubernetes manifests yet (M4-M6).

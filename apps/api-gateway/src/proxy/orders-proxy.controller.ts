@@ -17,6 +17,7 @@ import { EnvironmentVariables } from '../config/env.validation';
 import { requestFingerprint } from '../idempotency/fingerprint';
 import { IdempotencyUnavailableError } from '../idempotency/idempotency.errors';
 import { IdempotencyService } from '../idempotency/idempotency.service';
+import { withCustomerId } from './bind-customer';
 import { DownstreamClient, DownstreamResponse } from './downstream.client';
 
 /**
@@ -37,7 +38,10 @@ export class OrdersProxyController {
     this.baseUrl = config.get('ORDER_SERVICE_URL', { infer: true });
   }
 
-  /** Requires Idempotency-Key: a retried POST returns the first answer, never a 2nd order. */
+  /**
+   * Requires Idempotency-Key: a retried POST returns the first answer, never a 2nd order.
+   * customerId always comes from the JWT `sub`, never from the client.
+   */
   @Post()
   async create(
     @Headers('idempotency-key') idempotencyKey: string | undefined,
@@ -46,7 +50,9 @@ export class OrdersProxyController {
   ): Promise<void> {
     const sub = req.user?.sub;
     if (!sub) throw new UnauthorizedException(); // unreachable: the JWT guard ran first
-    const body = req.body as unknown;
+    // Bound before fingerprinting: a retry that spoofs another customerId is still the
+    // same request, and the order is always created for the caller.
+    const body = withCustomerId(req.body as unknown, sub);
     try {
       const { response, replayed } = await this.idempotency.execute(
         sub,
