@@ -135,6 +135,19 @@ echo '{not json' | MSYS_NO_PATHCONV=1 docker exec -i shopflow-kafka \
 | `pnpm test:e2e`     | E2E tests with Supertest (`apps/*/test/*.e2e-spec.ts`) |
 | `pnpm build`        | Builds every app into `dist/`                          |
 
+## Docker images
+
+One multi-stage `Dockerfile` builds any service; `APP` picks which one.
+
+```bash
+docker build --build-arg APP=order-service -t shopflow/order-service .
+docker run --rm --env-file .env -p 3001:3001 shopflow/order-service
+```
+
+The runtime image is `node:26.13.1-alpine3.24` with production dependencies only. It runs
+as the unprivileged `node` user. Configuration comes from the environment only: `.env` is
+never copied in (see `.dockerignore`). Migrations are not run by the app image.
+
 ## Layout
 
 ```
