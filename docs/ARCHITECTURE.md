@@ -99,4 +99,4 @@ late event for a finished order is ignored and logged.
 ## Key decisions
 
 See [decisions](decisions): stack (0001), KafkaJS directly (0002), NestJS gateway (0003),
-kind (0004), Nest CLI monorepo (0005).
+kind (0004), Nest CLI monorepo (0005), retry topics and DLQ (0006).
