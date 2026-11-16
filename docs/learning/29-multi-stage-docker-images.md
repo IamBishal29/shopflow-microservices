@@ -34,6 +34,11 @@ flowchart LR
 - **No migrations in the app image:** run `prisma migrate deploy` as a separate job (a
   compose one-shot or Kubernetes Job) before rollout, so three replicas don't race to
   migrate.
+- **Measure, don't assume:** the first build gave 971 MB images. `du` inside the image
+  showed `node_modules/.pnpm` holding all 745 packages (jest, eslint, TypeScript):
+  `pnpm fetch` had filled it, and the `--prod` install on top only changed the links.
+  `rm -rf node_modules` before the prod install brought it to 166 packages and 476 MB.
+  (A first guess, Prisma's optional peers, was tested and ruled out before shipping.)
 - **One recipe, four images:** every service builds the same way, so one file is
   hardened once. The image only differs by `APP`.
 

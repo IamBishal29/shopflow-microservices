@@ -32,14 +32,14 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 
 # --- prod-deps: runtime packages only (no TypeScript, Jest, Prisma CLI, Nest CLI) --------
 FROM deps AS prod-deps
-# `pnpm install --prod` alone is not enough: @prisma/client has optional peers (prisma,
-# typescript) that the lockfile satisfies from our devDependencies, which would pull the
-# Prisma CLI, Studio and TypeScript (~350 MB) into the image. Dropping devDependencies
-# from the manifest leaves those peers unresolved; every other version still comes from
-# the lockfile. No install scripts: production packages need none.
+# No install scripts: production packages need none, and the Prisma CLI that postinstall
+# calls is a dev dependency.
+# rm first: `pnpm fetch` (deps stage) leaves a node_modules/.pnpm holding EVERY package,
+# and a --prod install on top only changes the links, so jest, eslint, the Nest CLI and
+# TypeScript would still ship (971 MB images instead of 476 MB).
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));delete p.devDependencies;fs.writeFileSync('package.json',JSON.stringify(p,null,2))" \
- && pnpm install --prod --no-frozen-lockfile --prefer-offline --ignore-scripts --store-dir /pnpm/store
+    rm -rf node_modules \
+ && pnpm install --prod --frozen-lockfile --offline --ignore-scripts --store-dir /pnpm/store
 
 # --- runtime ------------------------------------------------------------------------------
 FROM ${NODE_IMAGE} AS runtime
