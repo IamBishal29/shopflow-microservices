@@ -45,7 +45,7 @@ cp .env.example .env          # local placeholders; set a real JWT_SECRET (opens
 docker compose up -d postgres postgres-init kafka kafka-init kafka-ui redis
                               # Postgres (+ payments DB/role), Kafka (+ topics), UI :8080, Redis
 pnpm prisma:deploy && pnpm prisma:deploy:payment   # apply both services' migrations
-pnpm start:order              # http://localhost:3001/health
+pnpm start:order              # http://localhost:3001/health, API docs at :3001/docs
 pnpm start:payment            # http://localhost:3002/health
 pnpm start:gateway            # http://localhost:3000/health (NODE_ENV=development for dev tokens)
 ```
