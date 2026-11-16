@@ -23,8 +23,8 @@ const savedOrder: Order = {
 describe('OrdersService', () => {
   const repo = {
     create: jest.fn<Promise<CreatedOrder>, [NewOrder, (order: Order) => unknown, string?]>(),
-    findById: jest.fn<Promise<Order | null>, [string]>(),
-    list: jest.fn<Promise<readonly Order[]>, [{ limit: number; offset: number }]>(),
+    findById: jest.fn<Promise<Order | null>, [string, string]>(),
+    list: jest.fn<Promise<readonly Order[]>, [string, { limit: number; offset: number }]>(),
     applyPaymentResult: jest.fn<Promise<PaymentResultOutcome>, [string, string, string]>(),
   };
   const service = new OrdersService(repo as unknown as OrdersRepository);
@@ -80,23 +80,27 @@ describe('OrdersService', () => {
     expect(repo.create).not.toHaveBeenCalled();
   });
 
-  it('returns the order when it exists', async () => {
+  it('returns the order when it exists and belongs to the caller', async () => {
     repo.findById.mockResolvedValue(savedOrder);
-    await expect(service.findById(orderId)).resolves.toBe(savedOrder);
+    await expect(service.findById(orderId, 'customer-1')).resolves.toBe(savedOrder);
+    expect(repo.findById).toHaveBeenCalledWith(orderId, 'customer-1');
   });
 
-  it('throws OrderNotFoundError for an unknown order id', async () => {
+  it("throws OrderNotFoundError for an unknown or another customer's order", async () => {
     repo.findById.mockResolvedValue(null);
-    await expect(service.findById(orderId)).rejects.toBeInstanceOf(OrderNotFoundError);
+    await expect(service.findById(orderId, 'customer-2')).rejects.toBeInstanceOf(
+      OrderNotFoundError,
+    );
   });
 
-  it('returns a page with the paging parameters echoed back', async () => {
+  it("returns a page of the caller's orders with the paging parameters echoed back", async () => {
     repo.list.mockResolvedValue([savedOrder]);
-    await expect(service.list({ limit: 20, offset: 40 })).resolves.toEqual({
+    await expect(service.list('customer-1', { limit: 20, offset: 40 })).resolves.toEqual({
       items: [savedOrder],
       limit: 20,
       offset: 40,
     });
+    expect(repo.list).toHaveBeenCalledWith('customer-1', { limit: 20, offset: 40 });
   });
 
   describe('handlePaymentResult', () => {

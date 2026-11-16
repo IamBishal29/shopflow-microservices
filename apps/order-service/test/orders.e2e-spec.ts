@@ -42,12 +42,15 @@ class InMemoryOrdersRepository {
     return Promise.resolve({ order: saved, replayed: false });
   }
 
-  findById(id: string): Promise<Order | null> {
-    return Promise.resolve(this.orders.find((o) => o.id === id) ?? null);
+  findById(id: string, customerId: string): Promise<Order | null> {
+    return Promise.resolve(
+      this.orders.find((o) => o.id === id && o.customerId === customerId) ?? null,
+    );
   }
 
-  list(page: PageRequest): Promise<readonly Order[]> {
-    return Promise.resolve(this.orders.slice(page.offset, page.offset + page.limit));
+  list(customerId: string, page: PageRequest): Promise<readonly Order[]> {
+    const own = this.orders.filter((o) => o.customerId === customerId);
+    return Promise.resolve(own.slice(page.offset, page.offset + page.limit));
   }
 }
 
@@ -186,18 +189,40 @@ describe('Orders API (e2e)', () => {
     });
   });
 
+  /** A read as the gateway sends it: the caller's JWT `sub` in x-customer-id. */
+  const readAs = (path: string, customerId = 'customer-1') =>
+    request(app.getHttpServer()).get(path).set('x-customer-id', customerId);
+
+  const createFor = async (customerId: string): Promise<string> => {
+    const res = await request(app.getHttpServer())
+      .post('/orders')
+      .send({ ...validOrder, customerId })
+      .expect(201);
+    return (res.body as { id: string }).id;
+  };
+
   describe('GET /orders/:id', () => {
-    it('returns an existing order', async () => {
-      const created = await request(app.getHttpServer()).post('/orders').send(validOrder);
-      const { id } = created.body as { id: string };
-      const res = await request(app.getHttpServer()).get(`/orders/${id}`).expect(200);
+    it('returns an existing order to its owner', async () => {
+      const id = await createFor('customer-1');
+      const res = await readAs(`/orders/${id}`).expect(200);
       expect(res.body).toMatchObject({ id, totalCents: 3700 });
+    });
+
+    it("answers 404 (not 403) for another customer's order, so its existence is not leaked", async () => {
+      const id = await createFor('customer-1');
+      const res = await readAs(`/orders/${id}`, 'customer-2').expect(404);
+      expect(res.body).toMatchObject({ code: 'ORDER_NOT_FOUND' });
+    });
+
+    it('answers 401 when the caller identity is missing, instead of reading any order', async () => {
+      const id = await createFor('customer-1');
+      const res = await request(app.getHttpServer()).get(`/orders/${id}`).expect(401);
+      expect(res.body).toMatchObject({ status: 401, code: 'UNAUTHORIZED' });
     });
 
     it('returns an ORDER_NOT_FOUND problem for an unknown id, echoing the correlation ID', async () => {
       const id = randomUUID();
-      const res = await request(app.getHttpServer())
-        .get(`/orders/${id}`)
+      const res = await readAs(`/orders/${id}`)
         .set('x-correlation-id', 'e2e-123')
         .expect(404)
         .expect('content-type', /application\/problem\+json/);
@@ -222,18 +247,30 @@ describe('Orders API (e2e)', () => {
     });
 
     it('returns 400 for an id that is not a UUID', async () => {
-      await request(app.getHttpServer()).get('/orders/not-a-uuid').expect(400);
+      await readAs('/orders/not-a-uuid').expect(400);
     });
   });
 
   describe('GET /orders', () => {
+    it("lists only the caller's orders", async () => {
+      const mine = await createFor('lister-1');
+      await createFor('lister-2');
+      const res = await readAs('/orders', 'lister-1').expect(200);
+      const body = res.body as { items: { id: string }[] };
+      expect(body.items.map((o) => o.id)).toEqual([mine]);
+    });
+
+    it('answers 401 without a caller identity', async () => {
+      await request(app.getHttpServer()).get('/orders').expect(401);
+    });
+
     it('defaults to limit 20, offset 0', async () => {
-      const res = await request(app.getHttpServer()).get('/orders').expect(200);
+      const res = await readAs('/orders').expect(200);
       expect(res.body).toMatchObject({ limit: 20, offset: 0 });
     });
 
     it('converts query strings to numbers and pages the result', async () => {
-      const res = await request(app.getHttpServer()).get('/orders?limit=1&offset=1').expect(200);
+      const res = await readAs('/orders?limit=1&offset=1').expect(200);
       const body = res.body as { items: unknown[]; limit: number; offset: number };
       expect(body.limit).toBe(1);
       expect(body.offset).toBe(1);
@@ -241,7 +278,7 @@ describe('Orders API (e2e)', () => {
     });
 
     it('rejects a page size above 100', async () => {
-      await request(app.getHttpServer()).get('/orders?limit=101').expect(400);
+      await readAs('/orders?limit=101').expect(400);
     });
   });
 });

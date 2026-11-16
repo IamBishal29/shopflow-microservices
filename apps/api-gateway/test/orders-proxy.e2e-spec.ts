@@ -7,6 +7,7 @@ import { FakeRedis } from '../src/redis/fake-redis';
 import { createGateway, tokenFor } from './test-app';
 
 const ORDER_ID = '0b8f6c1e-4a2d-4c3b-9f1e-2d7a5b6c8e90';
+const OTHER_ORDER_ID = '1c9a7d2f-5b3e-4d4c-8a2f-3e8b6c7d9fa1';
 
 interface Seen {
   method?: string;
@@ -80,6 +81,7 @@ describe('api-gateway /orders proxy (e2e)', () => {
     expect(seen.headers?.['x-correlation-id']).toBe('trace-123');
     // order-service enforces the key too (exactly-once even after a gateway timeout).
     expect(seen.headers?.['idempotency-key']).toBe('proxy-test-1');
+    expect(seen.headers?.['x-customer-id']).toBe('c-42');
     expect(seen.headers?.cookie).toBeUndefined();
     // Auth terminates at the gateway; the token is not passed on.
     expect(seen.headers?.authorization).toBeUndefined();
@@ -94,6 +96,22 @@ describe('api-gateway /orders proxy (e2e)', () => {
       .expect(201);
 
     expect(JSON.parse(seen.body ?? '')).toMatchObject({ customerId: 'attacker' });
+  });
+
+  it("sends the token's subject as x-customer-id on reads, ignoring a spoofed header", async () => {
+    await request(app.getHttpServer())
+      .get('/orders')
+      .set('authorization', `Bearer ${tokenFor(app, 'attacker')}`)
+      .set('x-customer-id', 'victim')
+      .expect(200);
+    expect(seen.headers?.['x-customer-id']).toBe('attacker');
+
+    await request(app.getHttpServer())
+      .get(`/orders/${OTHER_ORDER_ID}`)
+      .set('authorization', `Bearer ${tokenFor(app, 'attacker')}`)
+      .set('x-customer-id', 'victim')
+      .expect(200);
+    expect(seen.headers?.['x-customer-id']).toBe('attacker');
   });
 
   it('generates a correlation ID when the client sends none and forwards it', async () => {

@@ -8,3 +8,4 @@ export { paymentFailedV1Schema, paymentSucceededV1Schema } from './events/paymen
 export type { PaymentFailedV1, PaymentSucceededV1 } from './events/payment-result.v1';
 export { ContractViolationError, parseEvent } from './parse-event';
 export type { EventOf } from './parse-event';
+export { CUSTOMER_ID_HEADER } from './http-headers';

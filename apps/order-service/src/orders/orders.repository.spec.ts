@@ -149,8 +149,8 @@ describe('OrdersRepository', () => {
   });
 
   it('maps rows to domain orders without leaking database columns', async () => {
-    prismaOrder.findUnique.mockResolvedValue(row);
-    await expect(repository.findById(orderId)).resolves.toEqual({
+    prismaOrder.findFirst.mockResolvedValue(row);
+    await expect(repository.findById(orderId, 'customer-1')).resolves.toEqual({
       id: orderId,
       customerId: 'customer-1',
       totalCents: 2500,
@@ -162,15 +162,20 @@ describe('OrdersRepository', () => {
     });
   });
 
-  it('returns null when the order does not exist', async () => {
-    prismaOrder.findUnique.mockResolvedValue(null);
-    await expect(repository.findById(orderId)).resolves.toBeNull();
+  it("reads by id AND owner, so another customer's order is simply not found", async () => {
+    prismaOrder.findFirst.mockResolvedValue(null);
+    await expect(repository.findById(orderId, 'customer-2')).resolves.toBeNull();
+    expect(prismaOrder.findFirst).toHaveBeenCalledWith({
+      where: { id: orderId, customerId: 'customer-2' },
+      include: { items: true },
+    });
   });
 
-  it('lists newest first with a stable tie-breaker and the requested page', async () => {
+  it("lists only the caller's orders, newest first with a stable tie-breaker", async () => {
     prismaOrder.findMany.mockResolvedValue([row]);
-    await expect(repository.list({ limit: 20, offset: 40 })).resolves.toHaveLength(1);
+    await expect(repository.list('customer-1', { limit: 20, offset: 40 })).resolves.toHaveLength(1);
     expect(prismaOrder.findMany).toHaveBeenCalledWith({
+      where: { customerId: 'customer-1' },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       skip: 40,
       take: 20,

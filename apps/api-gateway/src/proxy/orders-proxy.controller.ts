@@ -10,7 +10,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
 import type { RequestWithUser } from '../auth/authenticated-user';
 import { OrderCacheService } from '../cache/order-cache.service';
 import { EnvironmentVariables } from '../config/env.validation';
@@ -48,8 +48,7 @@ export class OrdersProxyController {
     @Req() req: RequestWithUser,
     @Res() res: Response,
   ): Promise<void> {
-    const sub = req.user?.sub;
-    if (!sub) throw new UnauthorizedException(); // unreachable: the JWT guard ran first
+    const sub = subjectOf(req);
     // Bound before fingerprinting: a retry that spoofs another customerId is still the
     // same request, and the order is always created for the caller.
     const body = withCustomerId(req.body as unknown, sub);
@@ -64,6 +63,7 @@ export class OrdersProxyController {
             method: 'POST',
             path: '/orders',
             headers: req.headers,
+            customerId: sub,
             body,
           }),
       );
@@ -77,18 +77,23 @@ export class OrdersProxyController {
     }
   }
 
+  /** Only the caller's orders: order-service filters by the forwarded `sub` (#61). */
   @Get()
-  async list(@Req() req: Request, @Res() res: Response): Promise<void> {
+  async list(@Req() req: RequestWithUser, @Res() res: Response): Promise<void> {
     const result = await this.downstream.send({
       baseUrl: this.baseUrl,
       method: 'GET',
       path: `/orders${queryString(req.originalUrl)}`,
       headers: req.headers,
+      customerId: subjectOf(req),
     });
     reply(res, result);
   }
 
-  /** Cache-aside in Redis (short TTL): status may lag the saga by up to the TTL. */
+  /**
+   * Cache-aside in Redis (short TTL): status may lag the saga by up to the TTL. Another
+   * customer's order is a 404 from order-service (never cached: only 200s are).
+   */
   @Get(':id')
   async findById(
     // Validated here so the downstream path is built only from a UUID (no `..` tricks).
@@ -96,19 +101,26 @@ export class OrdersProxyController {
     @Req() req: RequestWithUser,
     @Res() res: Response,
   ): Promise<void> {
-    const sub = req.user?.sub;
-    if (!sub) throw new UnauthorizedException(); // unreachable: the JWT guard ran first
+    const sub = subjectOf(req);
     const { response, hit } = await this.cache.getOrLoad(sub, id, () =>
       this.downstream.send({
         baseUrl: this.baseUrl,
         method: 'GET',
         path: `/orders/${id}`,
         headers: req.headers,
+        customerId: sub,
       }),
     );
     res.setHeader('X-Cache', hit ? 'HIT' : 'MISS');
     reply(res, response);
   }
+}
+
+/** The verified JWT subject: who the gateway acts for downstream. */
+function subjectOf(req: RequestWithUser): string {
+  const sub = req.user?.sub;
+  if (!sub) throw new UnauthorizedException(); // unreachable: the JWT guard ran first
+  return sub;
 }
 
 function queryString(originalUrl: string): string {

@@ -32,7 +32,8 @@ model Order {
 
   // Exactly-once order creation per customer and key, enforced by the database (#56).
   @@unique([customerId, idempotencyKey])
-  @@index([customerId, createdAt])
+  // Matches GET /orders: WHERE customer_id = ? ORDER BY created_at DESC, id DESC (#61).
+  @@index([customerId, createdAt(sort: Desc), id(sort: Desc)])
   @@map("orders")
 }
 
