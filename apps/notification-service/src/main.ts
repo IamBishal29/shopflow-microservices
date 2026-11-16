@@ -6,8 +6,8 @@ import { EnvironmentVariables } from './config/env.validation';
 async function bootstrap(): Promise<void> {
   // Config is validated while AppModule initialises: bad env stops the process here.
   const app = await NestFactory.create(AppModule);
-  // Run onModuleDestroy / beforeApplicationShutdown hooks on SIGTERM so the DB pool
-  // (and, from #14, the Kafka consumer) close cleanly when the container stops.
+  // Run onModuleDestroy / beforeApplicationShutdown hooks on SIGTERM so the Kafka consumer
+  // leaves its group and the DB pool closes cleanly when the container stops.
   app.enableShutdownHooks();
 
   const config = app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);

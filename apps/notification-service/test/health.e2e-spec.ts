@@ -2,7 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { PrismaService } from '../src/prisma/prisma.service';
-import { createTestApp } from './test-app';
+import { createTestApp, kafkaFakes } from './test-app';
 
 describe('Health endpoints (e2e)', () => {
   // Stand-in for Postgres: these tests cover the HTTP wiring and status codes.
@@ -22,6 +22,15 @@ describe('Health endpoints (e2e)', () => {
 
   afterAll(async () => {
     await app.close();
+  });
+
+  it('starts the payment-results consumer in its own group on boot', () => {
+    expect(kafkaFakes.consumer.runInBackground).toHaveBeenCalledWith(
+      expect.objectContaining({
+        groupId: 'notification-service',
+        topics: ['payment.succeeded.v1', 'payment.failed.v1'],
+      }),
+    );
   });
 
   it('GET /health returns 200 even when the database is down', async () => {

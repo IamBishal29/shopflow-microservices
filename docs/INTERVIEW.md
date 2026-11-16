@@ -28,22 +28,24 @@ items are honest gaps with an issue number.
 
 ## Pattern map
 
-| Pattern                          | Where (built)                                    | Why                                                     | Trade-off                                                                  |
-| -------------------------------- | ------------------------------------------------ | ------------------------------------------------------- | -------------------------------------------------------------------------- |
-| API gateway                      | `apps/api-gateway`                               | one door for auth, limits, routing                      | extra hop; can become a bottleneck or a distributed monolith               |
-| JWT auth (HS256, pinned)         | `api-gateway/src/auth`                           | stateless, any replica verifies                         | hard to revoke → short TTL                                                 |
-| Object-level authorization       | order-service `WHERE id = ? AND customer_id = ?` | stop BOLA: ids are not secrets                          | trusts the gateway's `x-customer-id`; 404 hides existence                  |
-| Rate limiting (Redis, Lua)       | `api-gateway/src/rate-limit`                     | protect shared capacity; global across replicas         | fixed window allows edge bursts; fail open                                 |
-| Idempotency keys                 | `api-gateway/src/idempotency`                    | safe client retries of `POST`                           | Redis at the edge + UNIQUE(customer_id, key) in order-service; fail closed |
-| Correlation ID + timeouts        | `api-gateway/src/correlation`, `proxy`           | trace a request; fail fast instead of hanging           | copied through the outbox into every event (#51)                           |
-| Problem details (RFC 9457)       | `libs/errors`                                    | one error format everywhere                             | none worth mentioning                                                      |
-| Transactional outbox             | `order-service`, `libs/outbox`                   | no dual write: DB and Kafka can't disagree              | extra table + relay; publish latency; at-least-once                        |
-| Event contracts (zod, versioned) | `libs/contracts`                                 | explicit, validated schemas; `.v2` for breaking changes | shared lib couples deploys slightly                                        |
-| Idempotent consumer              | `libs/database` `claimEvent`, `processed_events` | redeliveries do nothing                                 | table grows (no retention job yet)                                         |
-| Retry topics + DLQ               | `libs/kafka`, ADR 0006                           | don't block a partition on one bad message              | retried messages lose per-key ordering                                     |
-| Choreography saga                | consumers in both services                       | loose coupling, no orchestrator SPOF                    | flow is spread out, harder to see                                          |
-| Forward-only state machine       | order-service `UPDATE … WHERE status='PENDING'`  | late/duplicate results can't move an order back         | compensation must be explicit                                              |
-| Database per service             | separate DBs + roles                             | independent schemas and scaling                         | no joins; consistency is eventual                                          |
+| Pattern                          | Where (built)                                         | Why                                                                   | Trade-off                                                                  |
+| -------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| API gateway                      | `apps/api-gateway`                                    | one door for auth, limits, routing                                    | extra hop; can become a bottleneck or a distributed monolith               |
+| JWT auth (HS256, pinned)         | `api-gateway/src/auth`                                | stateless, any replica verifies                                       | hard to revoke → short TTL                                                 |
+| Object-level authorization       | order-service `WHERE id = ? AND customer_id = ?`      | stop BOLA: ids are not secrets                                        | trusts the gateway's `x-customer-id`; 404 hides existence                  |
+| Rate limiting (Redis, Lua)       | `api-gateway/src/rate-limit`                          | protect shared capacity; global across replicas                       | fixed window allows edge bursts; fail open                                 |
+| Idempotency keys                 | `api-gateway/src/idempotency`                         | safe client retries of `POST`                                         | Redis at the edge + UNIQUE(customer_id, key) in order-service; fail closed |
+| Correlation ID + timeouts        | `api-gateway/src/correlation`, `proxy`                | trace a request; fail fast instead of hanging                         | copied through the outbox into every event (#51)                           |
+| Problem details (RFC 9457)       | `libs/errors`                                         | one error format everywhere                                           | none worth mentioning                                                      |
+| Transactional outbox             | `order-service`, `libs/outbox`                        | no dual write: DB and Kafka can't disagree                            | extra table + relay; publish latency; at-least-once                        |
+| Event contracts (zod, versioned) | `libs/contracts`                                      | explicit, validated schemas; `.v2` for breaking changes               | shared lib couples deploys slightly                                        |
+| Idempotent consumer              | `libs/database` `claimEvent`, `processed_events`      | redeliveries do nothing                                               | table grows (no retention job yet)                                         |
+| Retry topics + DLQ               | `libs/kafka`, ADR 0006                                | don't block a partition on one bad message                            | retried messages lose per-key ordering                                     |
+| Consumer-group fan-out           | order- and notification-service groups on `payment.*` | each group gets every event; add consumers without touching producers | every group must be idempotent on its own                                  |
+| Ports and adapters               | notification-service `NotificationSender`             | swap log → email/SMS without touching logic                           | one more indirection                                                       |
+| Choreography saga                | consumers in both services                            | loose coupling, no orchestrator SPOF                                  | flow is spread out, harder to see                                          |
+| Forward-only state machine       | order-service `UPDATE … WHERE status='PENDING'`       | late/duplicate results can't move an order back                       | compensation must be explicit                                              |
+| Database per service             | separate DBs + roles                                  | independent schemas and scaling                                       | no joins; consistency is eventual                                          |
 
 ## Questions and short answers
 
@@ -207,9 +209,25 @@ items are honest gaps with an issue number.
     only makes guessing harder; it is not authorization (OWASP API1, BOLA). Lists filter
     the same way, served by an index on `(customer_id, created_at DESC, id DESC)`.
 
+### Fan-out
+
+35. **Two services consume the same topic. How does Kafka make that work?** Through
+    consumer groups. Kafka keeps one committed offset per group per partition, so
+    order-service's group and notification-service's group each read every
+    `payment.*` event at their own pace. Within one group the partitions are split
+    across its instances, so adding pods scales that service without duplicating work.
+    The producer doesn't know who listens. Adding notification-service changed no other
+    service.
+36. **How do you avoid sending a notification twice?** Insert a row (UNIQUE `event_id`)
+    and send in one transaction. A failed send rolls back and Kafka retries; a
+    redelivery hits the unique index and is skipped. A crash between send and commit can
+    still duplicate, because exactly-once delivery isn't possible across a network. For
+    a real provider, pass the `eventId` as its idempotency key.
+
 ## Known gaps (say them before they're found)
 
-- notification-service is not built yet (#14).
+- notification-service only logs (no email/SMS), and payment events carry no `customerId`,
+  so a real channel needs a contract change first.
 - order-service trusts the gateway for identity (`customerId` in the POST body,
   `x-customer-id` on reads), so it must be reachable only through the gateway
   (NetworkPolicy, M5). Zero-trust option: forward the JWT and verify it in each service.

@@ -2,14 +2,12 @@
 
 ## Current
 - Milestone: M2 Event backbone (M1 and M3 complete)
-- Issue: #14 notification-service, split by Syed into 3 sequential PRs:
-  #67 libs/kafka background start (PR #69, merged) -> #68 scaffold (PR #70 open, CI
-  green) -> #14 consumer + NotificationSender port (log adapter) + idempotency.
-- Branch: feat/68-notification-scaffold (done; waiting for merge)
-- Next step: Syed merges PR #70, adds the .env keys below, runs
-  `docker compose up -d postgres-init` + `pnpm prisma:deploy:notification`. Then
-  `/next-task`: #14 (consumer: insert notification row + send in one transaction,
-  KAFKA_* config, consumer group `notification-service`).
+- Issue: #14 notification-service part 3 (consumer + sender port + dedupe), PR #71 open,
+  CI green. Last M2 issue: after merge, M1-M3 are complete.
+- Branch: feat/14-notification-consumer (done; waiting for merge)
+- Next step: Syed merges PR #71, adds the .env keys below (NOTIFICATION_* and
+  KAFKA_BROKERS for notification-service), starts Docker Desktop for the live checks
+  (several are queued). Then `/next-task`: M4 #20 (multi-stage Dockerfiles).
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -124,6 +122,10 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   hooks), `notifications` DB + role in postgres-init, `notifications` table (UNIQUE
   event_id = dedupe key + audit log, CHECKs on type/channel/message); built app checked
   without a DB: /health 200, /health/ready 503, bad URL fails fast (PR #70, learning note 27)
+- #14 (part 3): PaymentResultsConsumer in its own group `notification-service` (fan-out),
+  pure notificationFor (integer amount formatting), NotificationSender port + log adapter
+  (token NOTIFICATION_SENDER), repository inserts row + sends in one transaction (10 s
+  timeout; P2002 -> duplicate). Not verified live (Docker down) (PR #71, learning note 28)
 
 ## Decisions waiting for Syed
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
@@ -151,6 +153,12 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   whom to notify. Fine for the log sender; real channels need a contract change (v2 or an
   optional field). Decide when we add email/SMS.
 - PR #70 is ~420 lines (half copied boilerplate from payment-service); kept whole.
+- PR #71 is ~588 lines (~260 code, ~330 tests); should have been split (consumer vs
+  sender port). OK to keep, or split?
+- #14 not checked live: full saga, then reset the notification-service group to
+  earliest -> "Duplicate … already notified", no new rows (steps in PR #71).
+- notification-service .env keys: NOTIFICATION_SERVICE_PORT, NOTIFICATION_DATABASE_URL,
+  KAFKA_BROKERS (shared key, already used by the other services).
 - validateEnv now copied in 4 apps: extract into a lib (follow-up issue)?
 - #6 not checked live: `pnpm start:order`, open http://localhost:3001/docs.
 - #66 is ~316 lines in apps/ (decorators + ~100 test lines), over the cap; kept whole.
@@ -232,4 +240,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-16: #6 OpenAPI docs, PR #66 (merged; CI fix: deny @scarf/scarf build); #65 filed
 - 2026-11-16: #14 split into #67/#68/#14 (Syed's choice; own Postgres DB for dedupe)
 - 2026-11-16: #67 consumer background start in libs/kafka, PR #69 (merged)
-- 2026-11-16: #68 notification-service scaffold, PR #70
+- 2026-11-16: #68 notification-service scaffold, PR #70 (merged)
+- 2026-11-16: #14 notification consumer + sender port, PR #71

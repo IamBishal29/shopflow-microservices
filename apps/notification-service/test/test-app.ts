@@ -1,16 +1,28 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModuleBuilder } from '@nestjs/testing';
+import { KafkaConsumerService, KafkaProducerService } from '@shopflow/kafka';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 
+/** Fakes for Kafka so e2e tests never need (or wait for) a broker. */
+export const kafkaFakes = {
+  producer: { send: jest.fn(), onModuleInit: jest.fn(), onApplicationShutdown: jest.fn() },
+  consumer: { runInBackground: jest.fn(), onModuleDestroy: jest.fn() },
+};
+
 /**
- * Boots notification-service's real AppModule. Each test file swaps out infrastructure
- * (e.g. PrismaService); Kafka fakes arrive with the consumer (#14).
+ * Boots notification-service's real AppModule with Kafka swapped out. Each test file adds
+ * its own overrides, e.g. for PrismaService.
  */
 export async function createTestApp(
   configure: (builder: TestingModuleBuilder) => TestingModuleBuilder = (builder) => builder,
 ): Promise<INestApplication<App>> {
-  const moduleRef = await configure(Test.createTestingModule({ imports: [AppModule] })).compile();
+  const builder = Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(KafkaProducerService)
+    .useValue(kafkaFakes.producer)
+    .overrideProvider(KafkaConsumerService)
+    .useValue(kafkaFakes.consumer);
+  const moduleRef = await configure(builder).compile();
   const app = moduleRef.createNestApplication<INestApplication<App>>();
   await app.init();
   return app;
