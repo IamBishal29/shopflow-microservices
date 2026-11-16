@@ -32,9 +32,10 @@ items are honest gaps with an issue number.
 | -------------------------------- | ------------------------------------------------ | ------------------------------------------------------- | -------------------------------------------------------------------------- |
 | API gateway                      | `apps/api-gateway`                               | one door for auth, limits, routing                      | extra hop; can become a bottleneck or a distributed monolith               |
 | JWT auth (HS256, pinned)         | `api-gateway/src/auth`                           | stateless, any replica verifies                         | hard to revoke → short TTL                                                 |
+| Object-level authorization       | order-service `WHERE id = ? AND customer_id = ?` | stop BOLA: ids are not secrets                          | trusts the gateway's `x-customer-id`; 404 hides existence                  |
 | Rate limiting (Redis, Lua)       | `api-gateway/src/rate-limit`                     | protect shared capacity; global across replicas         | fixed window allows edge bursts; fail open                                 |
 | Idempotency keys                 | `api-gateway/src/idempotency`                    | safe client retries of `POST`                           | Redis at the edge + UNIQUE(customer_id, key) in order-service; fail closed |
-| Correlation ID + timeouts        | `api-gateway/src/correlation`, `proxy`           | trace a request; fail fast instead of hanging           | not yet in events (#51)                                                    |
+| Correlation ID + timeouts        | `api-gateway/src/correlation`, `proxy`           | trace a request; fail fast instead of hanging           | copied through the outbox into every event (#51)                           |
 | Problem details (RFC 9457)       | `libs/errors`                                    | one error format everywhere                             | none worth mentioning                                                      |
 | Transactional outbox             | `order-service`, `libs/outbox`                   | no dual write: DB and Kafka can't disagree              | extra table + relay; publish latency; at-least-once                        |
 | Event contracts (zod, versioned) | `libs/contracts`                                 | explicit, validated schemas; `.v2` for breaking changes | shared lib couples deploys slightly                                        |
@@ -197,12 +198,21 @@ items are honest gaps with an issue number.
     - **Observability:** OpenTelemetry traces and RED metrics per service, so the next
       bottleneck is visible before it hurts.
 
+### Security
+
+34. **A logged-in user changes the order id in the URL. What stops them?** Ownership is
+    part of the query: `WHERE id = ? AND customer_id = ?`, with the customer taken from the
+    verified JWT `sub` (the gateway sends it as `x-customer-id` and drops any client copy).
+    Someone else's order answers 404, like a missing one, so ids can't be probed. A UUID
+    only makes guessing harder; it is not authorization (OWASP API1, BOLA). Lists filter
+    the same way, served by an index on `(customer_id, created_at DESC, id DESC)`.
+
 ## Known gaps (say them before they're found)
 
 - notification-service is not built yet (#14).
-- `customerId` is bound to the JWT `sub` at the gateway only: order-service still trusts
-  the body, so it must be reachable only through the gateway (NetworkPolicy, M5).
-- No ownership check on reads yet (#61): any logged-in user can `GET /orders/:id` for any id.
+- order-service trusts the gateway for identity (`customerId` in the POST body,
+  `x-customer-id` on reads), so it must be reachable only through the gateway
+  (NetworkPolicy, M5). Zero-trust option: forward the JWT and verify it in each service.
 - No structured JSON logging (nestjs-pino), no OpenTelemetry, no Swagger yet; no
   Dockerfiles or Kubernetes manifests yet (M4-M6).
 - No Testcontainers integration tests yet (#22): the outbox, the Lua rate-limit script
