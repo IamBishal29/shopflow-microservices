@@ -11,6 +11,7 @@ module.exports = {
     '<rootDir>/apps/api-gateway/test/setup-env.ts',
     '<rootDir>/apps/order-service/test/setup-env.ts',
     '<rootDir>/apps/payment-service/test/setup-env.ts',
+    '<rootDir>/apps/notification-service/test/setup-env.ts',
   ],
   moduleNameMapper: {
     // Generated Prisma client uses ESM-style '.js' specifiers for its .ts files.

@@ -3,11 +3,13 @@
 ## Current
 - Milestone: M2 Event backbone (M1 and M3 complete)
 - Issue: #14 notification-service, split by Syed into 3 sequential PRs:
-  #67 libs/kafka background start (PR #69 open, CI green) -> #68 scaffold (own
-  `notifications` DB + role, config, health, Prisma `notifications` table with UNIQUE
-  event_id) -> #14 consumer + NotificationSender port (log adapter) + idempotency.
-- Branch: chore/67-consumer-background-start (done; waiting for merge)
-- Next step: Syed merges PR #69. Then `/next-task`: #68 (branch from fresh main).
+  #67 libs/kafka background start (PR #69, merged) -> #68 scaffold (PR #70 open, CI
+  green) -> #14 consumer + NotificationSender port (log adapter) + idempotency.
+- Branch: feat/68-notification-scaffold (done; waiting for merge)
+- Next step: Syed merges PR #70, adds the .env keys below, runs
+  `docker compose up -d postgres-init` + `pnpm prisma:deploy:notification`. Then
+  `/next-task`: #14 (consumer: insert notification row + send in one transaction,
+  KAFKA_* config, consumer group `notification-service`).
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -118,6 +120,10 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - #67 (part 1 of #14): `KafkaConsumerService.runInBackground` (start without blocking,
   retry every 5 s, stop on shutdown); both existing consumers use it; no behaviour change
   (PR #69, learning note 26)
+- #68 (part 2 of #14): apps/notification-service :3003 (config, health, Prisma, shutdown
+  hooks), `notifications` DB + role in postgres-init, `notifications` table (UNIQUE
+  event_id = dedupe key + audit log, CHECKs on type/channel/message); built app checked
+  without a DB: /health 200, /health/ready 503, bad URL fails fast (PR #70, learning note 27)
 
 ## Decisions waiting for Syed
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
@@ -139,6 +145,13 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   gateway (MISS, then HIT).
 - #56: after merging, `pnpm prisma:deploy`; then two POST /orders to :3001 with the same
   idempotency-key -> same id, one row in `outbox` for it.
+- For #68: add to `.env.example` and `.env`: `NOTIFICATION_SERVICE_PORT=3003`,
+  `NOTIFICATION_DATABASE_URL=postgresql://notifications:notifications@localhost:5432/notifications`.
+- #14 contract gap: payment.* events carry no customerId, so a real sender wouldn't know
+  whom to notify. Fine for the log sender; real channels need a contract change (v2 or an
+  optional field). Decide when we add email/SMS.
+- PR #70 is ~420 lines (half copied boilerplate from payment-service); kept whole.
+- validateEnv now copied in 4 apps: extract into a lib (follow-up issue)?
 - #6 not checked live: `pnpm start:order`, open http://localhost:3001/docs.
 - #66 is ~316 lines in apps/ (decorators + ~100 test lines), over the cap; kept whole.
 - #61: after merging, `pnpm prisma:deploy`; then with dev tokens for c-1 and c-2, an
@@ -218,4 +231,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-16: #61 ownership check on reads, PR #64 (merged)
 - 2026-11-16: #6 OpenAPI docs, PR #66 (merged; CI fix: deny @scarf/scarf build); #65 filed
 - 2026-11-16: #14 split into #67/#68/#14 (Syed's choice; own Postgres DB for dedupe)
-- 2026-11-16: #67 consumer background start in libs/kafka, PR #69
+- 2026-11-16: #67 consumer background start in libs/kafka, PR #69 (merged)
+- 2026-11-16: #68 notification-service scaffold, PR #70

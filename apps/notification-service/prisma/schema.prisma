@@ -1,0 +1,32 @@
+// notification-service database. Owned by notification-service only (database-per-service).
+// Everything it needs arrives in payment.succeeded.v1 / payment.failed.v1.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// One row per notification sent, written in the same transaction as the send (#14):
+/// a row exists if and only if the notification went out. The unique eventId is the
+/// dedupe key, so a redelivered payment event cannot notify twice. Doubles as the audit
+/// log ("what did we tell the customer about order X, and when?").
+model Notification {
+  id            String   @id @default(uuid()) @db.Uuid
+  eventId       String   @unique @map("event_id") @db.Uuid
+  orderId       String   @map("order_id") @db.Uuid
+  // payment.succeeded.v1 | payment.failed.v1 (CHECK in the migration)
+  eventType     String   @map("event_type")
+  // Which sender delivered it: "log" today; "email" / "sms" later (CHECK in the migration)
+  channel       String
+  message       String
+  correlationId String   @map("correlation_id")
+  sentAt        DateTime @default(now()) @map("sent_at") @db.Timestamptz(3)
+
+  @@index([orderId])
+  @@map("notifications")
+}
