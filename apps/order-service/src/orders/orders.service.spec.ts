@@ -34,11 +34,10 @@ describe('OrdersService', () => {
   it('computes the total from the items before saving', async () => {
     repo.create.mockResolvedValue(savedOrder);
 
-    await service.create({
-      customerId: 'customer-1',
-      currency: 'EUR',
-      items: savedOrder.items,
-    });
+    await service.create(
+      { customerId: 'customer-1', currency: 'EUR', items: savedOrder.items },
+      'req-1',
+    );
 
     expect(repo.create).toHaveBeenCalledWith(
       {
@@ -51,13 +50,17 @@ describe('OrdersService', () => {
     );
   });
 
-  it('records an order.created.v1 event for the saved order', async () => {
+  it("records an order.created.v1 event carrying the request's correlation ID", async () => {
     repo.create.mockResolvedValue(savedOrder);
-    await service.create({ customerId: 'customer-1', currency: 'EUR', items: savedOrder.items });
+    await service.create(
+      { customerId: 'customer-1', currency: 'EUR', items: savedOrder.items },
+      'trace-123',
+    );
 
     const toEvent = repo.create.mock.calls[0]?.[1];
     expect(toEvent?.(savedOrder)).toMatchObject({
       type: 'order.created.v1',
+      correlationId: 'trace-123',
       payload: { orderId, totalCents: 3700 },
     });
   });
@@ -70,7 +73,7 @@ describe('OrdersService', () => {
     }));
 
     await expect(
-      service.create({ customerId: 'customer-1', currency: 'EUR', items }),
+      service.create({ customerId: 'customer-1', currency: 'EUR', items }, 'req-1'),
     ).rejects.toBeInstanceOf(OrderTotalTooLargeError);
     expect(repo.create).not.toHaveBeenCalled();
   });

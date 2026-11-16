@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { CORRELATION_HEADER, correlationIdOrNew } from '@shopflow/errors';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ListOrdersQuery } from './dto/list-orders.query';
 import { Order } from './order';
@@ -9,9 +10,13 @@ import { OrderPage, OrdersService } from './orders.service';
 export class OrdersController {
   constructor(private readonly orders: OrdersService) {}
 
+  /** The gateway's correlation ID becomes the event's, so one ID spans HTTP and Kafka. */
   @Post()
-  create(@Body() dto: CreateOrderDto): Promise<Order> {
-    return this.orders.create(dto);
+  create(
+    @Body() dto: CreateOrderDto,
+    @Headers(CORRELATION_HEADER) correlationId: string | undefined,
+  ): Promise<Order> {
+    return this.orders.create(dto, correlationIdOrNew(correlationId));
   }
 
   @Get(':id')
