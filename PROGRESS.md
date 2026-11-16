@@ -2,10 +2,10 @@
 
 ## Current
 - Milestone: M3 Edge
-- Issue: #56 end-to-end idempotency, PR #63 open (targets main).
-- Branch: feat/56-end-to-end-idempotency (done; waiting for merge)
-- Next step: Syed merges PR #63 and runs `pnpm prisma:deploy` (new migration). Then
-  `/next-task`: last M3 issue #61 (ownership check on reads); then M1 #6 / M2 #14.
+- Issue: #61 ownership check on reads, PR #64 open (targets main). Last M3 issue.
+- Branch: feat/61-ownership-on-reads (done; waiting for merge)
+- Next step: Syed merges PR #64 and runs `pnpm prisma:deploy` (new index migration).
+  Then `/next-task`: M3 is complete; continue with M1 #6 / M2 #14.
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -104,6 +104,11 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   lookup fast path + P2002 race -> winner's order (loser's outbox row rolled back);
   201 + Idempotent-Replayed; gateway forwards the header; e2e for retry-after-504.
   Migration not applied to a real DB yet (Docker down) (PR #63, learning note 23)
+- #61 ownership on reads (Syed chose: trusted header + list index): gateway sends JWT
+  `sub` as `x-customer-id` (required in DownstreamRequest, client copy dropped);
+  order-service reads `WHERE id AND customer_id`, other customer's order -> 404, missing
+  identity -> 401; index (customer_id, created_at DESC, id DESC) replaces
+  (customer_id, created_at). Not verified live (Docker down) (PR #64, learning note 24)
 
 ## Decisions waiting for Syed
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
@@ -125,6 +130,10 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   gateway (MISS, then HIT).
 - #56: after merging, `pnpm prisma:deploy`; then two POST /orders to :3001 with the same
   idempotency-key -> same id, one row in `outbox` for it.
+- #61: after merging, `pnpm prisma:deploy`; then with dev tokens for c-1 and c-2, an
+  order of c-1 read as c-2 -> 404, and `GET /orders` as c-2 doesn't list it.
+- order-service now answers 401 on GET /orders(/:id) without `x-customer-id`: direct
+  curl calls to :3001 must send it (the gateway always does).
 - #53 not checked live: dev token for c-1, POST /orders with `"customerId":"c-999"` ->
   response shows customerId c-1.
 - `git push` hangs in Claude's shell (Git Credential Manager prompt?); #53 was pushed with
@@ -196,4 +205,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-16: #18 response cache, PR #59 (merged)
 - 2026-11-16: #51 correlation ID into order.created, PR #60 (merged)
 - 2026-11-16: #53 customerId from JWT sub, PR #62 (merged); follow-up #61 created
-- 2026-11-16: #56 end-to-end idempotency, PR #63
+- 2026-11-16: #56 end-to-end idempotency, PR #63 (merged)
+- 2026-11-16: #61 ownership check on reads, PR #64
