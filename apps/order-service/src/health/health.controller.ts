@@ -1,9 +1,11 @@
+import { ApiTags } from '@nestjs/swagger';
 import { Controller, Get, UseFilters } from '@nestjs/common';
 import { HealthCheck, HealthCheckResult, HealthCheckService } from '@nestjs/terminus';
 import { DatabaseHealthIndicator } from '@shopflow/database';
 import { HealthCheckErrorFilter } from './health-check-error.filter';
 
 @Controller('health')
+@ApiTags('health')
 @UseFilters(HealthCheckErrorFilter)
 export class HealthController {
   constructor(

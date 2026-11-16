@@ -4,6 +4,7 @@ import { KafkaConsumerService, KafkaProducerService } from '@shopflow/kafka';
 import { OutboxRelay } from '@shopflow/outbox';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
+import { setupOpenApi } from '../src/openapi/setup-openapi';
 
 /** Fakes for Kafka so e2e tests never need (or wait for) a broker. */
 export const kafkaFakes = {
@@ -30,6 +31,7 @@ export async function createTestApp(
     .useValue(outboxRelayFake);
   const moduleRef = await configure(builder).compile();
   const app = moduleRef.createNestApplication<INestApplication<App>>();
+  setupOpenApi(app); // as in main.ts
   await app.init();
   return app;
 }

@@ -1,4 +1,5 @@
 import { createParamDecorator, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { ApiHeader } from '@nestjs/swagger';
 import { CUSTOMER_ID_HEADER } from '@shopflow/contracts';
 import type { Request } from 'express';
 
@@ -19,3 +20,11 @@ export function customerIdFrom(value: unknown): string {
 export const CustomerId = createParamDecorator((_: unknown, ctx: ExecutionContext): string =>
   customerIdFrom(ctx.switchToHttp().getRequest<Request>().headers[CUSTOMER_ID_HEADER]),
 );
+
+/** OpenAPI: documents the header that @CustomerId() reads. */
+export const ApiCustomerIdHeader = (): MethodDecorator =>
+  ApiHeader({
+    name: CUSTOMER_ID_HEADER,
+    required: true,
+    description: 'Caller identity, set by api-gateway from the JWT sub. Missing: 401.',
+  });
