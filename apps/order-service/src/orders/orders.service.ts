@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { PaymentFailedV1, PaymentSucceededV1, TOPICS } from '@shopflow/contracts';
 import { NewOrder, Order, PageRequest, PaymentOutcome } from './order';
@@ -21,8 +20,11 @@ export class OrdersService {
 
   constructor(private readonly orders: OrdersRepository) {}
 
-  /** Computes the total server-side; a client-supplied total is never trusted. */
-  async create(command: CreateOrderCommand): Promise<Order> {
+  /**
+   * Computes the total server-side; a client-supplied total is never trusted.
+   * `correlationId` (the request's) is stamped on order.created so the saga can be traced.
+   */
+  async create(command: CreateOrderCommand, correlationId: string): Promise<Order> {
     const totalCents = command.items.reduce(
       (sum, item) => sum + item.quantity * item.unitPriceCents,
       0,
@@ -30,8 +32,6 @@ export class OrdersService {
     if (totalCents > MAX_TOTAL_CENTS) {
       throw new OrderTotalTooLargeError(MAX_TOTAL_CENTS);
     }
-    // Placeholder until the gateway forwards a request correlation ID (#15).
-    const correlationId = randomUUID();
     return this.orders.create({ ...command, totalCents }, (order) =>
       orderCreatedEvent(order, correlationId),
     );

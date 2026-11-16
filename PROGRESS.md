@@ -1,12 +1,11 @@
 # Progress
 
 ## Current
-- Milestone: M3 Edge (Day 3 interview plan complete; #58 merged)
-- Issue: #18 gateway response cache, PR #59 open (targets main).
-- Branch: feat/18-order-read-cache (done; waiting for merge)
-- Next step: Syed merges PR #59. Then `/next-task`: remaining M3 follow-ups #51
-  (correlation ID into order.created), #53 (customerId from JWT), #56 (end-to-end
-  idempotency).
+- Milestone: M3 Edge
+- Issue: #51 correlation ID into order.created, PR #60 open (targets main).
+- Branch: feat/51-correlation-id-into-events (done; waiting for merge)
+- Next step: Syed merges PR #60. Then `/next-task`: remaining M3 issues #53 (customerId
+  from JWT), #56 (end-to-end idempotency).
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -93,6 +92,10 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   orderId, only 200 cached, TTL `ORDER_CACHE_TTL_SECONDS` (default 5 s), no invalidation
   (staleness <= TTL), fail open, `X-Cache: HIT|MISS`; FakeRedis moved to src/redis.
   Not verified live (Docker Desktop not running) (PR #59, learning note 20)
+- #51 correlation ID: `correlationIdOrNew` in libs/errors (gateway middleware + order
+  controller), OrdersService.create(command, correlationId) stamps it on order.created;
+  payment-service already copied it to payment.* events, so one ID spans the saga.
+  Not verified live (Docker down) (PR #60, learning note 21)
 
 ## Decisions waiting for Syed
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
@@ -112,6 +115,10 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - And for #18: `ORDER_CACHE_TTL_SECONDS=5`. Is 5 s staleness OK, or shorter/longer?
 - #18 not checked live: start Docker Desktop, then GET an order twice through the
   gateway (MISS, then HIT).
+- #51 not checked live: POST /orders via the gateway with `x-correlation-id: demo-1`;
+  kafbat UI should show demo-1 on order.created and payment.succeeded.
+- Docker Desktop did not start from Claude's shell; please start it before the next
+  session so live checks can run.
 - POST /orders now needs an Idempotency-Key header (400 without): README demo/curl
   examples that create orders through the gateway must send one.
 - Optional follow-up: validateEnv is copied in 3 apps; extract a helper?
@@ -129,8 +136,7 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - kafkajs is unmaintained; prints TimeoutNegativeWarning on Node 26 (harmless). Swap to
   @confluentinc/kafka-javascript once it ships Node 26 prebuilts (only libs/kafka changes).
 - Git Bash on Windows: prefix docker exec commands with MSYS_NO_PATHCONV=1.
-- Outbox: published rows are never deleted yet (cleanup job = future work); correlationId
-  is a random UUID per order until #15.
+- Outbox: published rows are never deleted yet (cleanup job = future work).
 - Local DB roles: `payments` role owns `payments`; order-service still uses the compose
   superuser (own role = follow-up before K8s). New payment migrations: write with
   `prisma migrate diff` (the payments role has no CREATEDB for a shadow DB).
@@ -173,4 +179,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-15: #17 rate limiting, PR #55 (merged)
 - 2026-11-15: #19 idempotency keys, PR #57 (merged)
 - 2026-11-15: #29 demo script + interview guide, PR #58 (merged)
-- 2026-11-16: #18 response cache, PR #59
+- 2026-11-16: #18 response cache, PR #59 (merged)
+- 2026-11-16: #51 correlation ID into order.created, PR #60

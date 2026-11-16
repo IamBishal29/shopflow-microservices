@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { INestApplication } from '@nestjs/common';
+import type { EventEnvelope, Topic } from '@shopflow/contracts';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { NewOrder, Order, PageRequest } from '../src/orders/order';
@@ -7,11 +8,15 @@ import { OrdersRepository } from '../src/orders/orders.repository';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { createTestApp } from './test-app';
 
+type OutboxEvent = EventEnvelope<Topic, unknown>;
+
 /** In-memory stand-in for the Prisma repository; same contract, no database. */
 class InMemoryOrdersRepository {
   private readonly orders: Order[] = [];
+  /** What the real repository would write to the outbox, newest last. */
+  readonly outbox: OutboxEvent[] = [];
 
-  create(order: NewOrder): Promise<Order> {
+  create(order: NewOrder, toEvent: (created: Order) => OutboxEvent): Promise<Order> {
     const now = new Date();
     const saved: Order = {
       ...order,
@@ -21,6 +26,7 @@ class InMemoryOrdersRepository {
       updatedAt: now,
     };
     this.orders.unshift(saved);
+    this.outbox.push(toEvent(saved));
     return Promise.resolve(saved);
   }
 
@@ -43,6 +49,7 @@ const validOrder = {
 };
 
 describe('Orders API (e2e)', () => {
+  const repository = new InMemoryOrdersRepository();
   let app: INestApplication<App>;
 
   beforeAll(async () => {
@@ -51,7 +58,7 @@ describe('Orders API (e2e)', () => {
         .overrideProvider(PrismaService)
         .useValue({ onModuleInit: jest.fn(), onApplicationShutdown: jest.fn() })
         .overrideProvider(OrdersRepository)
-        .useValue(new InMemoryOrdersRepository()),
+        .useValue(repository),
     );
   });
 
@@ -68,6 +75,31 @@ describe('Orders API (e2e)', () => {
         status: 'PENDING',
         totalCents: 3700,
       });
+    });
+
+    it('stamps the x-correlation-id header on the order.created outbox event', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/orders')
+        .set('x-correlation-id', 'gw-trace-42')
+        .send(validOrder)
+        .expect(201);
+
+      const { id } = res.body as { id: string };
+      expect(repository.outbox.at(-1)).toMatchObject({
+        type: 'order.created.v1',
+        correlationId: 'gw-trace-42',
+        payload: { orderId: id },
+      });
+    });
+
+    it.each([
+      ['missing', undefined],
+      ['unsafe', 'bad id <script>'],
+    ])('generates a UUID correlation ID when the header is %s', async (_, header) => {
+      const req = request(app.getHttpServer()).post('/orders');
+      await (header ? req.set('x-correlation-id', header) : req).send(validOrder).expect(201);
+
+      expect(repository.outbox.at(-1)?.correlationId).toMatch(/^[0-9a-f-]{36}$/);
     });
 
     it('rejects client-supplied totalCents and status (no mass assignment)', async () => {

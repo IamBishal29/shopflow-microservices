@@ -1,6 +1,5 @@
-import { randomUUID } from 'node:crypto';
 import { Injectable, NestMiddleware } from '@nestjs/common';
-import { CORRELATION_HEADER, isValidCorrelationId } from '@shopflow/errors';
+import { CORRELATION_HEADER, correlationIdOrNew } from '@shopflow/errors';
 import type { NextFunction, Request, Response } from 'express';
 
 /**
@@ -11,8 +10,7 @@ import type { NextFunction, Request, Response } from 'express';
 @Injectable()
 export class CorrelationIdMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction): void {
-    const incoming = req.headers[CORRELATION_HEADER];
-    const id = isValidCorrelationId(incoming) ? incoming : randomUUID();
+    const id = correlationIdOrNew(req.headers[CORRELATION_HEADER]);
     req.headers[CORRELATION_HEADER] = id;
     res.setHeader(CORRELATION_HEADER, id);
     next();
