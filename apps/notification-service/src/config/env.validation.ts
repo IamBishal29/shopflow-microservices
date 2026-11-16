@@ -1,13 +1,24 @@
 import 'reflect-metadata';
-import { Expose, plainToInstance, Type } from 'class-transformer';
-import { IsIn, IsInt, IsString, Matches, Max, Min, validateSync } from 'class-validator';
+import { Expose, plainToInstance, Transform, Type } from 'class-transformer';
+import {
+  ArrayNotEmpty,
+  IsArray,
+  IsIn,
+  IsInt,
+  IsString,
+  Length,
+  Matches,
+  Max,
+  Min,
+  validateSync,
+} from 'class-validator';
 
 export const NODE_ENVS = ['development', 'test', 'production'] as const;
 export type NodeEnv = (typeof NODE_ENVS)[number];
 
 /**
  * The only environment variables notification-service reads. Validated once at startup;
- * anything else in process.env is ignored. Kafka settings arrive with the consumer (#14).
+ * anything else in process.env is ignored.
  */
 export class EnvironmentVariables {
   @Expose()
@@ -28,6 +39,55 @@ export class EnvironmentVariables {
     message: 'NOTIFICATION_DATABASE_URL must be a postgresql:// connection string',
   })
   readonly NOTIFICATION_DATABASE_URL!: string;
+
+  /** Comma-separated host:port list, e.g. "localhost:9092" or "kafka-0:9092,kafka-1:9092". */
+  // `!`: required like the DB URL; a silent localhost default would hide a missing prod setting.
+  @Expose()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string'
+      ? value
+          .split(',')
+          .map((broker) => broker.trim())
+          .filter(Boolean)
+      : value,
+  )
+  @IsArray()
+  @ArrayNotEmpty({ message: 'KAFKA_BROKERS must list at least one broker' })
+  @Matches(/^[A-Za-z0-9.-]+:\d{1,5}$/, {
+    each: true,
+    message: 'KAFKA_BROKERS entries must be host:port',
+  })
+  readonly KAFKA_BROKERS!: string[];
+
+  @Expose()
+  @IsString()
+  @Length(1, 64)
+  readonly KAFKA_CLIENT_ID: string = 'notification-service';
+
+  /**
+   * Consumer group for payment.*.v1. Must differ from order-service's group: a separate
+   * group gets its own copy of every event (fan-out); a shared one would split them.
+   */
+  @Expose()
+  @IsString()
+  @Length(1, 64)
+  readonly KAFKA_GROUP_ID: string = 'notification-service';
+
+  /** Tries per message (first delivery + retries) before it goes to the DLQ. */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  readonly CONSUMER_MAX_ATTEMPTS: number = 4;
+
+  /** Backoff ceiling for the first retry; doubles per attempt (full jitter, max 30 s). */
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(30_000)
+  readonly CONSUMER_RETRY_BASE_MS: number = 1_000;
 }
 
 /**
