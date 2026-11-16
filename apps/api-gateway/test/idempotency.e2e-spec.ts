@@ -9,19 +9,33 @@ import { createGateway, tokenFor } from './test-app';
 const ORDER = { customerId: 'c-1', currency: 'EUR', items: [{ sku: 'p-1', quantity: 1 }] };
 
 describe('api-gateway idempotency keys on POST /orders (e2e)', () => {
-  const downstream = { creates: 0, stall: false };
+  const downstream = { creates: 0, stall: false, slowCommit: false };
+  /** customer/key -> order id: the fake enforces keys like the real order-service. */
+  const ordersByKey = new Map<string, string>();
   let orderService: Server;
   let redis: FakeRedis;
   let app: INestApplication<App>;
 
   beforeAll(async () => {
-    // Fake order-service: every POST creates a new order with a new id.
+    // Fake order-service: a POST creates a new order, unless its Idempotency-Key is known.
     orderService = createServer((req, res) => {
-      req.resume().on('end', () => {
+      let body = '';
+      req.on('data', (chunk: Buffer) => (body += chunk.toString()));
+      req.on('end', () => {
         if (downstream.stall) return;
-        downstream.creates += 1;
+        // Unique per (customer, key), like the real index; customerId is the JWT sub (#53).
+        const { customerId } = JSON.parse(body) as { customerId: string };
+        const key = req.headers['idempotency-key'];
+        const slot = typeof key === 'string' ? `${customerId}/${key}` : undefined;
+        let id = slot ? ordersByKey.get(slot) : undefined;
+        if (!id) {
+          downstream.creates += 1;
+          id = `o-${downstream.creates}`;
+          if (slot) ordersByKey.set(slot, id);
+        }
+        if (downstream.slowCommit) return; // committed, but answers after the deadline
         res.writeHead(201, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ id: `o-${downstream.creates}`, status: 'PENDING' }));
+        res.end(JSON.stringify({ id, status: 'PENDING' }));
       });
     });
     await new Promise<void>((resolve) => orderService.listen(0, '127.0.0.1', resolve));
@@ -34,7 +48,8 @@ describe('api-gateway idempotency keys on POST /orders (e2e)', () => {
   });
 
   beforeEach(() => {
-    Object.assign(downstream, { creates: 0, stall: false });
+    Object.assign(downstream, { creates: 0, stall: false, slowCommit: false });
+    ordersByKey.clear();
     redis.down = false;
   });
 
@@ -65,6 +80,17 @@ describe('api-gateway idempotency keys on POST /orders (e2e)', () => {
       .expect(201)
       .expect('idempotent-replayed', 'true');
     expect(downstream.creates).toBe(1);
+  });
+
+  it('a retry after a gateway timeout returns the order that was committed anyway', async () => {
+    downstream.slowCommit = true;
+    await createOrder('key-timeout').expect(504); // gateway frees its Redis record
+    downstream.slowCommit = false;
+
+    const retry = await createOrder('key-timeout').expect(201);
+
+    expect(retry.body).toMatchObject({ id: 'o-1' });
+    expect(downstream.creates).toBe(1); // order-service saw the same key: no 2nd order
   });
 
   it('requires an Idempotency-Key header (400 problem+json)', async () => {
