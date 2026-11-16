@@ -1,6 +1,6 @@
 # Local infrastructure.
 # Database-per-service: one Postgres server, one database + role per service
-# ("orders" for order-service, "payments" for payment-service, created by postgres-init).
+# ("orders" for order-service; "payments" and "notifications" created by postgres-init).
 services:
   postgres:
     image: postgres:18.7-alpine3.24
@@ -19,8 +19,9 @@ services:
       timeout: 3s
       retries: 10
 
-  # One-shot, idempotent: creates payment-service's own role and database, and removes the
-  # default "any role may connect" grant, so each service's role can only reach its own DB.
+  # One-shot, idempotent: creates payment- and notification-service's own roles and
+  # databases, and removes the default "any role may connect" grant, so each service's role
+  # can only reach its own DB.
   # (The image's initdb scripts would only run on an empty volume; this runs every `up`.)
   postgres-init:
     image: postgres:18.7-alpine3.24
@@ -35,19 +36,25 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD:-shopflow}
       ORDERS_DB: ${POSTGRES_DB:-orders}
       PAYMENTS_DB_PASSWORD: ${PAYMENTS_DB_PASSWORD:-payments}
+      NOTIFICATIONS_DB_PASSWORD: ${NOTIFICATIONS_DB_PASSWORD:-notifications}
     entrypoint: ['/bin/sh', '-c']
     command:
       - |
         set -e
-        psql -v ON_ERROR_STOP=1 -d postgres -v pw="$$PAYMENTS_DB_PASSWORD" -v orders="$$ORDERS_DB" <<'SQL'
+        psql -v ON_ERROR_STOP=1 -d postgres -v pw="$$PAYMENTS_DB_PASSWORD" -v npw="$$NOTIFICATIONS_DB_PASSWORD" -v orders="$$ORDERS_DB" <<'SQL'
         SELECT format('CREATE ROLE payments LOGIN PASSWORD %L', :'pw')
           WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'payments') \gexec
         SELECT 'CREATE DATABASE payments OWNER payments'
           WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'payments') \gexec
         REVOKE CONNECT, TEMPORARY ON DATABASE payments FROM PUBLIC;
+        SELECT format('CREATE ROLE notifications LOGIN PASSWORD %L', :'npw')
+          WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'notifications') \gexec
+        SELECT 'CREATE DATABASE notifications OWNER notifications'
+          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'notifications') \gexec
+        REVOKE CONNECT, TEMPORARY ON DATABASE notifications FROM PUBLIC;
         REVOKE CONNECT, TEMPORARY ON DATABASE :"orders" FROM PUBLIC;
         SQL
-        echo "payments database ready"
+        echo "payments and notifications databases ready"
 
   # Single-node Kafka in KRaft mode: one process is both broker and controller, no ZooKeeper.
   kafka:
