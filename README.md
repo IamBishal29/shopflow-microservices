@@ -25,7 +25,8 @@ flowchart LR
   ps --> pdb[(Postgres: payments<br/>payments · outbox ·<br/>processed_events)]
   ps -->|"payment.succeeded.v1<br/>payment.failed.v1"| k
   k -->|payment results| os
-  k -.->|planned| ns[notification-service]
+  k -->|"payment results<br/>(own consumer group)"| ns[notification-service :3003]
+  ns --> ndb[(Postgres: notifications<br/>notifications)]
 ```
 
 | Service              | Status  | Responsibility                                                      |
@@ -33,7 +34,7 @@ flowchart LR
 | api-gateway          | working | JWT auth, routing + timeouts, rate limiting, idempotency keys       |
 | order-service        | working | Orders REST API, Postgres (Prisma), outbox, applies payment results |
 | payment-service      | working | Consumes `order.created`, simulates a charge, publishes the result  |
-| notification-service | planned | Consumes payment results, sends notifications (#14)                 |
+| notification-service | working | Consumes payment results, notifies once per event (log sender)      |
 
 ## Quick start
 
@@ -47,7 +48,7 @@ docker compose up -d postgres postgres-init kafka kafka-init kafka-ui redis
 pnpm prisma:deploy && pnpm prisma:deploy:payment && pnpm prisma:deploy:notification
 pnpm start:order              # http://localhost:3001/health, API docs at :3001/docs
 pnpm start:payment            # http://localhost:3002/health
-pnpm start:notification       # http://localhost:3003/health (consumer arrives in #14)
+pnpm start:notification       # http://localhost:3003/health
 pnpm start:gateway            # http://localhost:3000/health (NODE_ENV=development for dev tokens)
 ```
 
