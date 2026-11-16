@@ -1,11 +1,13 @@
 # Progress
 
 ## Current
-- Milestone: M1 Order service (M3 Edge complete)
-- Issue: #6 OpenAPI docs, PR #66 open (targets main). Last M1 issue.
-- Branch: feat/6-openapi-docs (done; waiting for merge)
-- Next step: Syed merges PR #66 (and runs `pnpm prisma:deploy` for #61's index if not
-  done). Then `/next-task`: M2 #14 notification-service.
+- Milestone: M2 Event backbone (M1 and M3 complete)
+- Issue: #14 notification-service, split by Syed into 3 sequential PRs:
+  #67 libs/kafka background start (PR #69 open, CI green) -> #68 scaffold (own
+  `notifications` DB + role, config, health, Prisma `notifications` table with UNIQUE
+  event_id) -> #14 consumer + NotificationSender port (log adapter) + idempotency.
+- Branch: chore/67-consumer-background-start (done; waiting for merge)
+- Next step: Syed merges PR #69. Then `/next-task`: #68 (branch from fresh main).
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -113,6 +115,9 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   shared ProblemDetails schema (problem+json) per route, response schemas `implements`
   the domain types, e2e incl. DTO drift guard (validated fields == documented fields);
   gateway docs = follow-up #65 (PR #66, learning note 25)
+- #67 (part 1 of #14): `KafkaConsumerService.runInBackground` (start without blocking,
+  retry every 5 s, stop on shutdown); both existing consumers use it; no behaviour change
+  (PR #69, learning note 26)
 
 ## Decisions waiting for Syed
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
@@ -175,8 +180,6 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   order status forward from PENDING. DLQ replay = re-publish key/value to the source topic.
 - Order 6ef59cb5… (customer c-42, from #4) stays PENDING forever: created before the
   outbox existed, so no event. Harmless local test data.
-- Consumer start-with-retry is duplicated in order- and payment-service; move into
-  libs/kafka when a third consumer appears (notification-service, #14).
 - .env is not picked up by `start:*:prod` locally (services failed config validation);
   for live checks Claude passes ORDER_DATABASE_URL / PAYMENT_DATABASE_URL / KAFKA_BROKERS
   explicitly. Syed: check that .env has these keys.
@@ -213,4 +216,6 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-16: #53 customerId from JWT sub, PR #62 (merged); follow-up #61 created
 - 2026-11-16: #56 end-to-end idempotency, PR #63 (merged)
 - 2026-11-16: #61 ownership check on reads, PR #64 (merged)
-- 2026-11-16: #6 OpenAPI docs, PR #66; follow-up #65 (gateway docs)
+- 2026-11-16: #6 OpenAPI docs, PR #66 (merged; CI fix: deny @scarf/scarf build); #65 filed
+- 2026-11-16: #14 split into #67/#68/#14 (Syed's choice; own Postgres DB for dedupe)
+- 2026-11-16: #67 consumer background start in libs/kafka, PR #69
