@@ -70,16 +70,28 @@ describe('api-gateway /orders proxy (e2e)', () => {
       .set('idempotency-key', 'proxy-test-1')
       .set('x-correlation-id', 'trace-123')
       .set('cookie', 'session=secret')
-      .send({ customerId: 'c-1' })
+      .send({ currency: 'EUR' })
       .expect(201)
       .expect('x-correlation-id', 'trace-123');
 
     expect(res.body).toEqual({ id: 'o-1', status: 'PENDING' });
-    expect(seen).toMatchObject({ method: 'POST', url: '/orders', body: '{"customerId":"c-1"}' });
+    expect(seen).toMatchObject({ method: 'POST', url: '/orders' });
+    expect(JSON.parse(seen.body ?? '')).toEqual({ currency: 'EUR', customerId: 'c-42' });
     expect(seen.headers?.['x-correlation-id']).toBe('trace-123');
     expect(seen.headers?.cookie).toBeUndefined();
     // Auth terminates at the gateway; the token is not passed on.
     expect(seen.headers?.authorization).toBeUndefined();
+  });
+
+  it("creates the order for the token's subject, ignoring a spoofed customerId", async () => {
+    await request(app.getHttpServer())
+      .post('/orders')
+      .set('authorization', `Bearer ${tokenFor(app, 'attacker')}`)
+      .set('idempotency-key', 'spoof-1')
+      .send({ customerId: 'victim', currency: 'EUR' })
+      .expect(201);
+
+    expect(JSON.parse(seen.body ?? '')).toMatchObject({ customerId: 'attacker' });
   });
 
   it('generates a correlation ID when the client sends none and forwards it', async () => {
