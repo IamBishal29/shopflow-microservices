@@ -26,6 +26,7 @@ describe('validateEnv', () => {
     expect(env.RATE_LIMIT_MAX).toBe(100);
     expect(env.RATE_LIMIT_WINDOW_SECONDS).toBe(60);
     expect(env.IDEMPOTENCY_TTL_SECONDS).toBe(86_400);
+    expect(env.ORDER_CACHE_TTL_SECONDS).toBe(5);
     expect(env.JWT_ISSUER).toBe('shopflow-gateway');
     expect(env.JWT_AUDIENCE).toBe('shopflow-api');
     expect(env.JWT_TTL_SECONDS).toBe(900);
@@ -64,6 +65,15 @@ describe('validateEnv', () => {
     );
     expect(() => validateEnv({ ...validEnv, DOWNSTREAM_TIMEOUT_MS: '60000' })).toThrow(
       /DOWNSTREAM_TIMEOUT_MS/,
+    );
+  });
+
+  it('rejects a cache TTL outside 1 - 300 s (long TTLs mean long-stale order status)', () => {
+    expect(() => validateEnv({ ...validEnv, ORDER_CACHE_TTL_SECONDS: '0' })).toThrow(
+      /ORDER_CACHE_TTL_SECONDS/,
+    );
+    expect(() => validateEnv({ ...validEnv, ORDER_CACHE_TTL_SECONDS: '3600' })).toThrow(
+      /ORDER_CACHE_TTL_SECONDS/,
     );
   });
 

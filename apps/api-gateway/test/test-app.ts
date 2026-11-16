@@ -42,6 +42,7 @@ export async function createGateway(
     RATE_LIMIT_MAX: 100,
     RATE_LIMIT_WINDOW_SECONDS: 60,
     IDEMPOTENCY_TTL_SECONDS: 86_400,
+    ORDER_CACHE_TTL_SECONDS: 5,
     ...overrides,
   };
   let builder = Test.createTestingModule({ imports: [AppModule] })
