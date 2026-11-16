@@ -69,16 +69,17 @@ export class OrdersService {
     return result;
   }
 
-  async findById(id: string): Promise<Order> {
-    const order = await this.orders.findById(id);
+  /** Scoped to the owner: someone else's order is "not found", never "forbidden". */
+  async findById(id: string, customerId: string): Promise<Order> {
+    const order = await this.orders.findById(id, customerId);
     if (!order) {
       throw new OrderNotFoundError(id);
     }
     return order;
   }
 
-  async list(page: PageRequest): Promise<OrderPage> {
-    const items = await this.orders.list(page);
+  async list(customerId: string, page: PageRequest): Promise<OrderPage> {
+    const items = await this.orders.list(customerId, page);
     return { items, limit: page.limit, offset: page.offset };
   }
 }

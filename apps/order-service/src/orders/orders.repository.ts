@@ -133,14 +133,22 @@ export class OrdersRepository {
     });
   }
 
-  async findById(id: string): Promise<Order | null> {
-    const row = await this.prisma.order.findUnique({ where: { id }, include: { items: true } });
+  /** Ownership is part of the WHERE: there is no code path that reads first, checks later. */
+  async findById(id: string, customerId: string): Promise<Order | null> {
+    const row = await this.prisma.order.findFirst({
+      where: { id, customerId },
+      include: { items: true },
+    });
     return row ? toOrder(row) : null;
   }
 
-  /** Newest first; `id` breaks ties so pages are stable when timestamps collide. */
-  async list(page: PageRequest): Promise<readonly Order[]> {
+  /**
+   * One customer's orders, newest first; `id` breaks ties so pages are stable. Served by
+   * the (customer_id, created_at DESC, id DESC) index: a range read, no sort.
+   */
+  async list(customerId: string, page: PageRequest): Promise<readonly Order[]> {
     const rows = await this.prisma.order.findMany({
+      where: { customerId },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       skip: page.offset,
       take: page.limit,

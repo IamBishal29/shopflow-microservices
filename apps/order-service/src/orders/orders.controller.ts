@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { CORRELATION_HEADER, correlationIdOrNew } from '@shopflow/errors';
 import type { Response } from 'express';
+import { CustomerId } from './customer-id.decorator';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ListOrdersQuery } from './dto/list-orders.query';
 import { Order } from './order';
@@ -49,13 +50,18 @@ export class OrdersController {
     return order;
   }
 
+  /** Another customer's order answers 404, like a missing one: existence is not leaked. */
   @Get(':id')
-  findById(@Param('id', ParseUUIDPipe) id: string): Promise<Order> {
-    return this.orders.findById(id);
+  findById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CustomerId() customerId: string,
+  ): Promise<Order> {
+    return this.orders.findById(id, customerId);
   }
 
+  /** Only the caller's orders. */
   @Get()
-  list(@Query() query: ListOrdersQuery): Promise<OrderPage> {
-    return this.orders.list({ limit: query.limit, offset: query.offset });
+  list(@Query() query: ListOrdersQuery, @CustomerId() customerId: string): Promise<OrderPage> {
+    return this.orders.list(customerId, { limit: query.limit, offset: query.offset });
   }
 }
