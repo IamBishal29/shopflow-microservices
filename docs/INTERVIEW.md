@@ -213,8 +213,8 @@ items are honest gaps with an issue number.
 - order-service trusts the gateway for identity (`customerId` in the POST body,
   `x-customer-id` on reads), so it must be reachable only through the gateway
   (NetworkPolicy, M5). Zero-trust option: forward the JWT and verify it in each service.
-- No structured JSON logging (nestjs-pino), no OpenTelemetry, no Swagger yet; no
-  Dockerfiles or Kubernetes manifests yet (M4-M6).
+- No structured JSON logging (nestjs-pino), no OpenTelemetry; OpenAPI docs for
+  order-service only (gateway: #65); no Dockerfiles or Kubernetes manifests yet (M4-M6).
 - No Testcontainers integration tests yet (#22): the outbox, the Lua rate-limit script
   and the Kafka handlers were verified live and with fakes.
 - `outbox` and `processed_events` rows are never cleaned up (retention job).

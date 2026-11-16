@@ -1,4 +1,6 @@
 allowBuilds:
   '@parcel/watcher': false
   '@prisma/engines': true
+  # Download telemetry pulled in by swagger-ui-dist (#6); not needed, never run it.
+  '@scarf/scarf': false
   prisma: true
