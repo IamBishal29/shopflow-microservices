@@ -1,12 +1,12 @@
 # Progress
 
 ## Current
-- Milestone: M3 Edge (Day 3 interview plan complete once PR #58 merges)
-- Issue: #29 README demo + docs/INTERVIEW.md (M6, pulled forward for the interview),
-  PR #58 open (targets main).
-- Branch: docs/29-demo-and-interview (done; waiting for merge)
-- Next step: Syed merges PR #58 and rehearses with docs/INTERVIEW.md + the README demo.
-  Then `/next-task`: lowest open M3 issue is #18 (response cache); follow-ups #51, #53, #56.
+- Milestone: M3 Edge (Day 3 interview plan complete; #58 merged)
+- Issue: #18 gateway response cache, PR #59 open (targets main).
+- Branch: feat/18-order-read-cache (done; waiting for merge)
+- Next step: Syed merges PR #59. Then `/next-task`: remaining M3 follow-ups #51
+  (correlation ID into order.created), #53 (customerId from JWT), #56 (end-to-end
+  idempotency).
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -89,6 +89,10 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - #29 docs: README architecture diagram, gateway demo script, failure demos (every
   command run live first); docs/INTERVIEW.md with walkthrough, pattern map, 33 Q&As,
   100x answer, known gaps (PR #58, learning note 19)
+- #18 response cache: cache-aside for GET /orders/:id in Redis, key per JWT sub +
+  orderId, only 200 cached, TTL `ORDER_CACHE_TTL_SECONDS` (default 5 s), no invalidation
+  (staleness <= TTL), fail open, `X-Cache: HIT|MISS`; FakeRedis moved to src/redis.
+  Not verified live (Docker Desktop not running) (PR #59, learning note 20)
 
 ## Decisions waiting for Syed
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
@@ -105,6 +109,9 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - Followed the Day 3 plan (#19 before #18) since no answer came; say if you prefer
   strict issue order from now on.
 - And for #19: `IDEMPOTENCY_TTL_SECONDS=86400`.
+- And for #18: `ORDER_CACHE_TTL_SECONDS=5`. Is 5 s staleness OK, or shorter/longer?
+- #18 not checked live: start Docker Desktop, then GET an order twice through the
+  gateway (MISS, then HIT).
 - POST /orders now needs an Idempotency-Key header (400 without): README demo/curl
   examples that create orders through the gateway must send one.
 - Optional follow-up: validateEnv is copied in 3 apps; extract a helper?
@@ -165,4 +172,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-15: #16 JWT auth, PR #54 (merged)
 - 2026-11-15: #17 rate limiting, PR #55 (merged)
 - 2026-11-15: #19 idempotency keys, PR #57 (merged)
-- 2026-11-15: #29 demo script + interview guide, PR #58
+- 2026-11-15: #29 demo script + interview guide, PR #58 (merged)
+- 2026-11-16: #18 response cache, PR #59
