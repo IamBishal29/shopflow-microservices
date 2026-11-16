@@ -1,13 +1,17 @@
 # Progress
 
 ## Current
-- Milestone: M2 Event backbone (M1 and M3 complete)
-- Issue: #14 notification-service part 3 (consumer + sender port + dedupe), PR #71 open,
-  CI green. Last M2 issue: after merge, M1-M3 are complete.
-- Branch: feat/14-notification-consumer (done; waiting for merge)
-- Next step: Syed merges PR #71, adds the .env keys below (NOTIFICATION_* and
-  KAFKA_BROKERS for notification-service), starts Docker Desktop for the live checks
-  (several are queued). Then `/next-task`: M4 #20 (multi-stage Dockerfiles).
+- Milestone: M4 Containers (M1-M3 complete)
+- Issue: #20 multi-stage Dockerfiles (Syed chose: node:26-alpine, one shared Dockerfile
+  with APP build-arg, verify with real Docker).
+- Branch: chore/20-dockerfiles (IN PROGRESS, pushed, no PR yet). Dockerfile,
+  .dockerignore, README section and learning note 29 are committed but NOT built yet:
+  Docker Desktop was not running.
+- Next step (needs Docker Desktop running): for each APP build
+  `docker build --build-arg APP=<app> -t shopflow/<app> .`; check `docker run --rm
+  --entrypoint id shopflow/<app>` -> uid=1000(node); run order-service against compose
+  Postgres (health/ready 200); note `docker images` sizes; fix anything the build
+  reveals; then open the PR (Closes #20) with the sizes.
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -241,4 +245,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-16: #14 split into #67/#68/#14 (Syed's choice; own Postgres DB for dedupe)
 - 2026-11-16: #67 consumer background start in libs/kafka, PR #69 (merged)
 - 2026-11-16: #68 notification-service scaffold, PR #70 (merged)
-- 2026-11-16: #14 notification consumer + sender port, PR #71
+- 2026-11-16: #14 notification consumer + sender port, PR #71 (merged)
+- 2026-11-16: #20 Dockerfiles written on chore/20-dockerfiles; waiting for Docker to verify
