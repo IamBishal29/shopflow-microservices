@@ -1,4 +1,4 @@
-export { CORRELATION_HEADER, isValidCorrelationId } from './correlation-id';
+export { CORRELATION_HEADER, correlationIdOrNew, isValidCorrelationId } from './correlation-id';
 export { DomainError } from './domain-error';
 export type { DomainErrorKind } from './domain-error';
 export { PROBLEM_CONTENT_TYPE, toProblem } from './problem-details';
