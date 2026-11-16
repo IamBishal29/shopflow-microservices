@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { EventEnvelope, Topic } from '@shopflow/contracts';
 import { claimEvent } from '@shopflow/database';
-import type { Prisma } from '../generated/prisma/client';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NewOrder, Order, OrderStatus, PageRequest, PaymentOutcome } from './order';
 import { OrderNotFoundError } from './order.errors';
@@ -11,6 +11,12 @@ type OutboxEvent = EventEnvelope<Topic, unknown>;
 
 /** Name under which the payment-results handler records processed events. */
 export const PAYMENT_RESULTS_CONSUMER = 'order-service.payment-results';
+
+export interface CreatedOrder {
+  readonly order: Order;
+  /** true when an order with this idempotency key already existed and was returned. */
+  readonly replayed: boolean;
+}
 
 export type PaymentResultOutcome =
   | { readonly result: 'applied' }
@@ -25,14 +31,53 @@ export class OrdersRepository {
   /**
    * Transactional outbox: the order, its items and its event row commit together or not
    * at all. Kafka is never called here; OutboxRelay publishes the row later.
+   *
+   * With an idempotency key, at most one order exists per (customer, key): a repeat gets
+   * the existing order back. The lookup is the fast path; the UNIQUE index is the
+   * guarantee when two requests race (the loser's transaction, incl. its outbox row, rolls
+   * back and it returns the winner's order).
    */
-  async create(order: NewOrder, toEvent: (created: Order) => OutboxEvent): Promise<Order> {
+  async create(
+    order: NewOrder,
+    toEvent: (created: Order) => OutboxEvent,
+    idempotencyKey?: string,
+  ): Promise<CreatedOrder> {
+    if (idempotencyKey) {
+      const existing = await this.findByKey(order.customerId, idempotencyKey);
+      if (existing) return { order: existing, replayed: true };
+    }
+    try {
+      const created = await this.insert(order, toEvent, idempotencyKey);
+      return { order: created, replayed: false };
+    } catch (error: unknown) {
+      if (idempotencyKey && isUniqueViolation(error)) {
+        const winner = await this.findByKey(order.customerId, idempotencyKey);
+        if (winner) return { order: winner, replayed: true };
+      }
+      throw error;
+    }
+  }
+
+  private async findByKey(customerId: string, idempotencyKey: string): Promise<Order | null> {
+    const row = await this.prisma.order.findFirst({
+      where: { customerId, idempotencyKey },
+      include: { items: true },
+    });
+    return row ? toOrder(row) : null;
+  }
+
+  private insert(
+    order: NewOrder,
+    toEvent: (created: Order) => OutboxEvent,
+    idempotencyKey: string | undefined,
+  ): Promise<Order> {
     return this.prisma.$transaction(async (tx) => {
       const row = await tx.order.create({
         data: {
           customerId: order.customerId,
           currency: order.currency,
           totalCents: order.totalCents,
+          idempotencyKey: idempotencyKey ?? null,
           items: {
             create: order.items.map((item) => ({
               sku: item.sku,
@@ -103,6 +148,10 @@ export class OrdersRepository {
     });
     return rows.map(toOrder);
   }
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
 function toOrder(row: OrderRow): Order {

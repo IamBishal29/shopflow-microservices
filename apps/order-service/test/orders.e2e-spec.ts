@@ -4,7 +4,7 @@ import type { EventEnvelope, Topic } from '@shopflow/contracts';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { NewOrder, Order, PageRequest } from '../src/orders/order';
-import { OrdersRepository } from '../src/orders/orders.repository';
+import { CreatedOrder, OrdersRepository } from '../src/orders/orders.repository';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { createTestApp } from './test-app';
 
@@ -16,7 +16,18 @@ class InMemoryOrdersRepository {
   /** What the real repository would write to the outbox, newest last. */
   readonly outbox: OutboxEvent[] = [];
 
-  create(order: NewOrder, toEvent: (created: Order) => OutboxEvent): Promise<Order> {
+  /** (customerId, key) -> order id, like the UNIQUE index on orders. */
+  private readonly keys = new Map<string, string>();
+
+  create(
+    order: NewOrder,
+    toEvent: (created: Order) => OutboxEvent,
+    idempotencyKey?: string,
+  ): Promise<CreatedOrder> {
+    const slot = idempotencyKey && `${order.customerId}/${idempotencyKey}`;
+    const existing = slot && this.orders.find((o) => o.id === this.keys.get(slot));
+    if (existing) return Promise.resolve({ order: existing, replayed: true });
+
     const now = new Date();
     const saved: Order = {
       ...order,
@@ -27,7 +38,8 @@ class InMemoryOrdersRepository {
     };
     this.orders.unshift(saved);
     this.outbox.push(toEvent(saved));
-    return Promise.resolve(saved);
+    if (slot) this.keys.set(slot, saved.id);
+    return Promise.resolve({ order: saved, replayed: false });
   }
 
   findById(id: string): Promise<Order | null> {
@@ -100,6 +112,31 @@ describe('Orders API (e2e)', () => {
       await (header ? req.set('x-correlation-id', header) : req).send(validOrder).expect(201);
 
       expect(repository.outbox.at(-1)?.correlationId).toMatch(/^[0-9a-f-]{36}$/);
+    });
+
+    it('returns the same order for a repeated Idempotency-Key, with one event only', async () => {
+      const post = () =>
+        request(app.getHttpServer()).post('/orders').set('idempotency-key', 'e2e-key-1');
+      const events = repository.outbox.length;
+
+      const first = await post().send(validOrder).expect(201);
+      // E.g. the gateway timed out on the first call and the client retried.
+      const repeat = await post()
+        .send({ ...validOrder, currency: 'USD' })
+        .expect(201)
+        .expect('idempotent-replayed', 'true');
+
+      expect(first.headers['idempotent-replayed']).toBeUndefined();
+      expect(repeat.body).toEqual(first.body);
+      expect(repository.outbox.length).toBe(events + 1);
+    });
+
+    it('rejects a malformed Idempotency-Key with 400', async () => {
+      await request(app.getHttpServer())
+        .post('/orders')
+        .set('idempotency-key', 'has spaces')
+        .send(validOrder)
+        .expect(400);
     });
 
     it('rejects client-supplied totalCents and status (no mass assignment)', async () => {

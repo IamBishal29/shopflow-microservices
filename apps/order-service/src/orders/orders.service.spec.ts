@@ -2,7 +2,7 @@ import { Logger } from '@nestjs/common';
 import { OrderNotFoundError, OrderTotalTooLargeError } from './order.errors';
 import { NewOrder, Order } from './order';
 import { paidOrderId, paymentFailed, paymentSucceeded } from './payment-event.fixtures';
-import { OrdersRepository, PaymentResultOutcome } from './orders.repository';
+import { CreatedOrder, OrdersRepository, PaymentResultOutcome } from './orders.repository';
 import { OrdersService } from './orders.service';
 
 const orderId = '6f1c2b8e-0c5e-4f8a-9d2e-1a2b3c4d5e6f';
@@ -22,7 +22,7 @@ const savedOrder: Order = {
 
 describe('OrdersService', () => {
   const repo = {
-    create: jest.fn<Promise<Order>, [NewOrder, (order: Order) => unknown]>(),
+    create: jest.fn<Promise<CreatedOrder>, [NewOrder, (order: Order) => unknown, string?]>(),
     findById: jest.fn<Promise<Order | null>, [string]>(),
     list: jest.fn<Promise<readonly Order[]>, [{ limit: number; offset: number }]>(),
     applyPaymentResult: jest.fn<Promise<PaymentResultOutcome>, [string, string, string]>(),
@@ -31,12 +31,13 @@ describe('OrdersService', () => {
 
   beforeEach(() => jest.resetAllMocks());
 
-  it('computes the total from the items before saving', async () => {
-    repo.create.mockResolvedValue(savedOrder);
+  it('computes the total from the items before saving and passes the idempotency key', async () => {
+    repo.create.mockResolvedValue({ order: savedOrder, replayed: false });
 
     await service.create(
       { customerId: 'customer-1', currency: 'EUR', items: savedOrder.items },
       'req-1',
+      'key-1',
     );
 
     expect(repo.create).toHaveBeenCalledWith(
@@ -47,11 +48,12 @@ describe('OrdersService', () => {
         totalCents: 2 * 1250 + 1 * 1200,
       },
       expect.any(Function),
+      'key-1',
     );
   });
 
   it("records an order.created.v1 event carrying the request's correlation ID", async () => {
-    repo.create.mockResolvedValue(savedOrder);
+    repo.create.mockResolvedValue({ order: savedOrder, replayed: false });
     await service.create(
       { customerId: 'customer-1', currency: 'EUR', items: savedOrder.items },
       'trace-123',

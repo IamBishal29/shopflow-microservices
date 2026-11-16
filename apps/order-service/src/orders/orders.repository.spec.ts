@@ -1,3 +1,4 @@
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NewOrder } from './order';
 import { OrderNotFoundError } from './order.errors';
@@ -27,6 +28,7 @@ const row = {
 describe('OrdersRepository', () => {
   const prismaOrder = {
     create: jest.fn(),
+    findFirst: jest.fn(),
     findUnique: jest.fn(),
     findMany: jest.fn(),
     updateMany: jest.fn(),
@@ -63,11 +65,13 @@ describe('OrdersRepository', () => {
     const created = await repository.create(newOrder, () => event);
 
     expect($transaction).toHaveBeenCalledTimes(1);
+    expect(prismaOrder.findFirst).not.toHaveBeenCalled(); // no key, no lookup
     expect(prismaOrder.create).toHaveBeenCalledWith({
       data: {
         customerId: 'customer-1',
         currency: 'EUR',
         totalCents: 2500,
+        idempotencyKey: null,
         items: { create: [{ sku: 'SKU-1', quantity: 2, unitPriceCents: 1250 }] },
       },
       include: { items: true },
@@ -75,7 +79,62 @@ describe('OrdersRepository', () => {
     expect(outboxEvent.create).toHaveBeenCalledWith({
       data: { id: event.eventId, aggregateId: orderId, type: 'order.created.v1', payload: event },
     });
-    expect(created.id).toBe(orderId);
+    expect(created).toMatchObject({ replayed: false, order: { id: orderId } });
+  });
+
+  it('stores the idempotency key on a first request', async () => {
+    prismaOrder.findFirst.mockResolvedValue(null);
+    const created = await repository.create(newOrder, () => event, 'key-1');
+
+    expect(prismaOrder.findFirst).toHaveBeenCalledWith({
+      where: { customerId: 'customer-1', idempotencyKey: 'key-1' },
+      include: { items: true },
+    });
+    expect(prismaOrder.create).toHaveBeenCalledWith({
+      data: {
+        customerId: 'customer-1',
+        currency: 'EUR',
+        totalCents: 2500,
+        idempotencyKey: 'key-1',
+        items: { create: [{ sku: 'SKU-1', quantity: 2, unitPriceCents: 1250 }] },
+      },
+      include: { items: true },
+    });
+    expect(created.replayed).toBe(false);
+  });
+
+  it('returns the existing order for a repeated key without a new order or event', async () => {
+    prismaOrder.findFirst.mockResolvedValue(row);
+    const repeat = await repository.create(newOrder, () => event, 'key-1');
+
+    expect(repeat).toMatchObject({ replayed: true, order: { id: orderId } });
+    expect($transaction).not.toHaveBeenCalled();
+    expect(outboxEvent.create).not.toHaveBeenCalled();
+  });
+
+  it("returns the winner's order when a concurrent request with the same key commits first", async () => {
+    prismaOrder.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(row);
+    prismaOrder.create.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: 'test',
+      }),
+    );
+
+    const loser = await repository.create(newOrder, () => event, 'key-1');
+
+    expect(loser).toMatchObject({ replayed: true, order: { id: orderId } });
+    expect(outboxEvent.create).not.toHaveBeenCalled(); // its transaction rolled back
+  });
+
+  it('rethrows a unique violation when there is no idempotency key', async () => {
+    prismaOrder.create.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: 'test',
+      }),
+    );
+    await expect(repository.create(newOrder, () => event)).rejects.toThrow('Unique constraint');
   });
 
   it('builds the event from the saved order, so it carries the database id', async () => {
