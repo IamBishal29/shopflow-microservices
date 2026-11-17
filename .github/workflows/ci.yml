@@ -76,9 +76,8 @@ jobs:
           if output=$(docker run --rm "$image" 2>&1); then
             echo "expected a config error, but the app started without config"; exit 1
           fi
-          echo "$output" | tail -5
-          echo "$output" | grep -q 'Invalid environment configuration' \
-            || { echo 'app crashed before config validation (missing module?)'; exit 1; }
+          echo "$output" | grep -A4 'Invalid environment configuration' \
+            || { echo "$output" | tail -20; echo 'app crashed before config validation (missing module?)'; exit 1; }
       - name: Smoke test migrate
         if: matrix.image == 'migrate'
         run: docker run --rm --entrypoint pnpm shopflow/migrate:ci exec prisma --version
