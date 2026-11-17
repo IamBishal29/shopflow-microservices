@@ -132,6 +132,11 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   timeout; P2002 -> duplicate). Not verified live (Docker down) (PR #71, learning note 28)
 
 ## Decisions waiting for Syed
+- #21: `docker compose config` says .env has no JWT_SECRET. Add one
+  (`openssl rand -base64 48`), or `docker compose up` stops with a clear error.
+- #21: gateway runs with NODE_ENV=development in compose (dev token endpoint on). OK for
+  the local stack? Apps use host ports 3000-3003, so stop compose apps before `pnpm start:*`.
+- #21: the migrate image carries all dev deps (big, tooling only). Slim it later?
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
   `PAYMENT_SERVICE_PORT=3002`,
   `PAYMENT_DATABASE_URL=postgresql://payments:payments@localhost:5432/payments`.
