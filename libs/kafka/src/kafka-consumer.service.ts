@@ -38,6 +38,13 @@ export interface ConsumerSubscription {
 /** How long runInBackground waits before trying to start again while Kafka is down. */
 export const START_RETRY_MS = 5_000;
 
+/**
+ * How long the broker may hold an empty fetch (long-poll). disconnect() waits for the fetch
+ * in flight, so this bounds a clean shutdown. kafkajs defaults to 5 s; 500 ms is the Java
+ * client's default (fetch.max.wait.ms), at the cost of ~2 empty fetches/s per idle consumer.
+ */
+export const FETCH_MAX_WAIT_MS = 500;
+
 /** Thrown inside a retry wait when the service shuts down; the message is redelivered later. */
 class ConsumerStoppingError extends Error {
   override readonly name = 'ConsumerStoppingError';
@@ -143,7 +150,7 @@ export class KafkaConsumerService implements OnModuleDestroy {
     topics: readonly string[],
     process: (payload: EachMessagePayload) => Promise<void>,
   ): Promise<void> {
-    const consumer = this.kafka.consumer({ groupId });
+    const consumer = this.kafka.consumer({ groupId, maxWaitTimeInMs: FETCH_MAX_WAIT_MS });
     this.consumers.push(consumer);
     await consumer.connect();
     // Only applies when the group has no committed offset yet (first deploy): start from

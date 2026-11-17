@@ -1,19 +1,11 @@
 # Progress
 
 ## Current
-- Milestone: M4 Containers (M1-M3 complete)
-- Issue: #22 Testcontainers, PR #78 open, CI green. #23 = PR #76 also waiting for merge.
-- Branch: test/22-testcontainers (done; waiting for merge)
-- Next step: Syed merges #76, then #78 (PROGRESS.md will conflict; Claude merges main into
-  the branch and resolves). Then `/next-task`: #77 (shutdown still SIGKILLed live;
-  root-cause evidence on the issue), the last open M4 issue; reproduce it with the #22
-  harness by stopping the Kafka container.
-- Issue: #23 CI image builds, PR #76 open, CI green (did #23 before #22: Docker still down).
-- Branch: chore/23-ci-docker-images (done; waiting for merge)
-- Next step: Syed merges #76. Then start Docker Desktop + add JWT_SECRET to .env, and run
-  the queued live checks: #21 (`docker compose up -d --build`, all healthy, README demo)
-  and #72 (`docker compose stop kafka`; `docker stop shopflow-order-service` < 10 s,
-  exit 0). Next issue: #22 Testcontainers (last open M4 issue; needs Docker locally).
+- Milestone: M4 Containers (M1-M3 complete; #20-#23, #72 merged)
+- Issue: #77 shutdown SIGKILLed live, PR #79 open
+- Branch: fix/77-pid1-shutdown-exit (done; waiting for merge)
+- Next step: Syed merges #79, closing M4. Then `/next-task`: M5 Kubernetes, lowest is #24
+  (kind cluster + manifests).
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -157,19 +149,29 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   (duplicate -> 1 payment, poison -> DLQ via real consumer); CI `integration` job (51 s).
   Found: consumer.disconnect waits for the 5 s fetch long-poll (maxWaitTimeInMs 500 ->
   362 ms), noted on #77. Learning note 33.
-
-## Decisions waiting for Syed
-- `.env` still has no JWT_SECRET (`docker compose up` refuses). For the live checks Claude
-  passed a throwaway one from the shell. Please add your own.
-- #77 fix will lower kafkajs `maxWaitTimeInMs` (5000 -> ~500): faster shutdown, ~2 idle
-  fetches/s per consumer. OK?
-- CLAUDE.md "Project facts > Test" could list `pnpm test:int` (needs Docker). Add it?
 - #23 CI images (PR #76): `images` matrix job (4 apps + migrate), buildx + GHA cache
   (scope per image, mode=max), no push; smoke test: uid 1000 and the app loads every
   module up to the config error; migrate runs `prisma --version`. Verified in CI: ~2 min
   cold, ~30 s warm (11 CACHED layers). Learning note 32.
+- #77 shutdown (PR #79): root cause was not a hook. Instrumented in the image, all hooks
+  finish in ms; Nest then re-raises SIGTERM, which PID 1 ignores, and kafkajs timers keep
+  node alive until SIGKILL. Fix: `enableShutdownHooks([], { useProcessExit: true })` in all
+  4 main.ts; consumers `maxWaitTimeInMs` 500 (Java default). New int test: whole
+  order-service AppModule, close < 1.5 s (Kafka up) / < 10 s (Kafka stopped); fails with
+  5 s fetch wait (3032 ms). Live: Kafka down 13.9 s exit 137 -> 5-9 s exit 0; Kafka up
+  3.5 s -> 0.87-0.96 s. Learning note 34.
 
 ## Decisions waiting for Syed
+- `.env` still has no JWT_SECRET (`docker compose up` refuses). For the live checks Claude
+  passed a throwaway one from the shell. Please add your own.
+- #77: lowered kafkajs `maxWaitTimeInMs` to 500 (Java client default): ~2 empty
+  fetches/s per idle consumer. Say if you want it configurable instead.
+- #77: Kafka-down stop can still take up to ~9 s (three 3 s steps, design from #72); tight
+  under Docker's 10 s, fine for Kubernetes' 30 s. Lower the step bound later?
+- `git push` hangs here (Windows credential helper waits on a hidden prompt; fetch works).
+  Claude pushed with a one-off `-c credential.helper='!gh auth git-credential'`.
+  `gh auth setup-git` would make that permanent; want it?
+- CLAUDE.md "Project facts > Test" could list `pnpm test:int` (needs Docker). Add it?
 - Image versioning/promotion (SHA tags, push to GHCR) is not done: GHCR is free for public
   repos but needs a token setting. Want a follow-up issue for M5 (kind can load local
   images, so it isn't required)?
@@ -300,4 +302,4 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-17: #72 bounded shutdown, PR #75 (merged)
 - 2026-11-17: #23 CI image builds, PR #76
 - 2026-11-17: live checks: #21 ok, #72 failed -> #77; #22 Testcontainers, PR #78
-
+- 2026-11-17: #22 + #23 merged; #77 PID 1 shutdown fix, PR #79

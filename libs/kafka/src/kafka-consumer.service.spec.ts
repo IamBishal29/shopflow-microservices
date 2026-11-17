@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { EachMessagePayload, IHeaders, Kafka } from 'kafkajs';
 import {
+  FETCH_MAX_WAIT_MS,
   IncomingMessage,
   KafkaConsumerService,
   nextOffset,
@@ -98,10 +99,11 @@ describe('KafkaConsumerService', () => {
   });
   afterAll(() => jest.restoreAllMocks());
 
-  it('runs a main consumer and a retry consumer in its own group, both from the oldest event', async () => {
+  it('runs a main consumer and a retry consumer in its own group, from the oldest event, with a short fetch wait', async () => {
     const { kafka, main, retry } = await setup(jest.fn());
-    expect(kafka.consumer).toHaveBeenCalledWith({ groupId: 'payment-service' });
-    expect(kafka.consumer).toHaveBeenCalledWith({ groupId: 'payment-service.retry' });
+    const options = { maxWaitTimeInMs: FETCH_MAX_WAIT_MS };
+    expect(kafka.consumer).toHaveBeenCalledWith({ groupId: 'payment-service', ...options });
+    expect(kafka.consumer).toHaveBeenCalledWith({ groupId: 'payment-service.retry', ...options });
     expect(main.subscribe).toHaveBeenCalledWith({
       topics: ['order.created.v1'],
       fromBeginning: true,
