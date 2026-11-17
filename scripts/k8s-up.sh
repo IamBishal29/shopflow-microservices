@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Builds the images, loads them into a local kind cluster, installs the Strimzi operator
-# and applies deploy/k8s (data stores, Kafka, migrations, the four services).
+# and Envoy Gateway, and applies deploy/k8s (edge, data stores, Kafka, migrations,
+# the four services).
 # Idempotent: re-run after a code change to rebuild, reload and roll the pods.
 # Needs: docker, kind, kubectl. Usage: scripts/k8s-up.sh
 set -euo pipefail
@@ -38,6 +39,10 @@ kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -
 kubectl apply --server-side -k deploy/strimzi >/dev/null
 kubectl wait --for=condition=Established --timeout=60s   crd/kafkas.kafka.strimzi.io crd/kafkanodepools.kafka.strimzi.io crd/kafkatopics.kafka.strimzi.io
 kubectl -n "$NAMESPACE" rollout status deployment/strimzi-cluster-operator --timeout=180s
+# Same for the edge: Gateway API CRDs + Envoy Gateway controller (ADR 0007).
+kubectl apply --server-side -k deploy/envoy-gateway >/dev/null
+kubectl wait --for=condition=Established --timeout=60s   crd/gateways.gateway.networking.k8s.io crd/httproutes.gateway.networking.k8s.io   crd/envoyproxies.gateway.envoyproxy.io
+kubectl -n envoy-gateway-system rollout status deployment/envoy-gateway --timeout=180s
 
 existing=$(kubectl -n "$NAMESPACE" get deployment "${APPS[@]}" -o name 2>/dev/null || true)
 # A finished Job never runs again: recreate the migration Jobs so every deploy migrates.
@@ -55,4 +60,6 @@ kubectl -n "$NAMESPACE" wait job -l app.kubernetes.io/component=migration   --fo
 for app in "${APPS[@]}"; do
   kubectl -n "$NAMESPACE" rollout status deployment "$app" --timeout=180s
 done
+kubectl -n "$NAMESPACE" wait gateway/shopflow --for=condition=Programmed --timeout=180s
 kubectl -n "$NAMESPACE" get pods
+echo "Gateway: http://shopflow.localhost:8088 (try /health)"
