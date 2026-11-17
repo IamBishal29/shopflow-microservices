@@ -1,11 +1,12 @@
 # Progress
 
 ## Current
-- Milestone: M4 Containers (M1-M3 complete; #20-#23, #72 merged)
-- Issue: #77 shutdown SIGKILLed live, PR #79 open
-- Branch: fix/77-pid1-shutdown-exit (done; waiting for merge)
-- Next step: Syed merges #79, closing M4. Then `/next-task`: M5 Kubernetes, lowest is #24
-  (kind cluster + manifests).
+- Milestone: M5 Kubernetes (M1-M4 complete)
+- Issue: #24 kind + manifests, PR #80 open
+- Branch: chore/24-kind-manifests (done; waiting for merge)
+- Next step: Syed merges #80. Then `/next-task`: #25 (Strimzi Kafka + Postgres + Redis in
+  the cluster, plus a migrate Job); the services become ready then. The kind cluster
+  `shopflow` is still running (delete: `kind delete cluster --name shopflow`).
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -161,7 +162,21 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   5 s fetch wait (3032 ms). Live: Kafka down 13.9 s exit 137 -> 5-9 s exit 0; Kafka up
   3.5 s -> 0.87-0.96 s. Learning note 34.
 
+- #77 merged (PR #79).
+- #24 kind + Kustomize (PR #80; Syed chose kind via winget, Kustomize over Helm):
+  deploy/kind cluster, per-app ConfigMap/Deployment/Service, liveness /health, readiness
+  /health/ready, requests/limits from measured RSS, non-root read-only, secretGenerator
+  from gitignored deploy/k8s/secrets/*.env, scripts/k8s-up.sh, CI `kubectl kustomize`.
+  Live: back-end pods Running 0/1 with 0 restarts (no DB yet), gateway 1/1, port-forward
+  /health 200. Learning note 35.
+
 ## Decisions waiting for Syed
+- kind was installed with winget, but this shell's PATH doesn't have it until a restart
+  (winget Links folder). Open a new terminal before running scripts/k8s-up.sh.
+- #24: gateway in k8s also runs NODE_ENV=development (dev token endpoint), as in compose.
+  OK for local only?
+- #24: deploy/k8s/secrets/*.env on this machine are copies of the placeholders (for the
+  live check); put real values in before anything beyond local use.
 - `.env` still has no JWT_SECRET (`docker compose up` refuses). For the live checks Claude
   passed a throwaway one from the shell. Please add your own.
 - #77: lowered kafkajs `maxWaitTimeInMs` to 500 (Java client default): ~2 empty
@@ -303,3 +318,4 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-17: #23 CI image builds, PR #76
 - 2026-11-17: live checks: #21 ok, #72 failed -> #77; #22 Testcontainers, PR #78
 - 2026-11-17: #22 + #23 merged; #77 PID 1 shutdown fix, PR #79
+- 2026-11-17: #77 merged; #24 kind + Kustomize manifests, PR #80
