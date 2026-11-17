@@ -74,4 +74,6 @@ COPY --from=build /repo/dist/apps/${APP} ./
 USER node
 # exec: node replaces the shell as PID 1 and receives SIGTERM directly, so Nest's shutdown
 # hooks run (consumers leave their group, pools close) when Docker or Kubernetes stops it.
+# PID 1 has no default signal actions, so main.ts must exit itself after the hooks
+# (useProcessExit); a re-raised SIGTERM would be ignored until SIGKILL (#77).
 CMD ["/bin/sh", "-c", "exec node \"$APP_MAIN\""]

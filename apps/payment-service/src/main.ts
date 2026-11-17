@@ -8,7 +8,9 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
   // Run onModuleDestroy / beforeApplicationShutdown hooks on SIGTERM so DB pools
   // and Kafka consumers close cleanly when Docker or Kubernetes stops the container.
-  app.enableShutdownHooks();
+  // useProcessExit: Nest otherwise re-raises the signal to end the process, which does
+  // nothing when node is PID 1 in a container (#77). Exit explicitly after the hooks.
+  app.enableShutdownHooks([], { useProcessExit: true });
 
   const config = app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);
   await app.listen(config.get('PAYMENT_SERVICE_PORT', { infer: true }));
