@@ -40,6 +40,18 @@ flowchart LR
 
 Requirements: Node.js 26 (see `.nvmrc`), pnpm 12, Docker. Bash (Git Bash on Windows).
 
+**Everything in Docker** (one command; needs only Docker and a `JWT_SECRET` in `.env`):
+
+```bash
+docker compose up -d --build  # infra -> migrations (one-shot jobs) -> 4 services, health-gated
+docker compose ps             # all services "healthy"; postgres-init, kafka-init, *-migrate "exited (0)"
+```
+
+Ports are the same as below (gateway :3000), so the demo script works unchanged. Stop the
+compose services before running the apps on the host, or the ports clash.
+
+**Apps on the host** (hot reload, debugger):
+
 ```bash
 pnpm install
 cp .env.example .env          # local placeholders; set a real JWT_SECRET (openssl rand -base64 48)
@@ -146,7 +158,9 @@ docker run --rm --env-file .env -p 3001:3001 shopflow/order-service
 
 The runtime image is `node:26.13.1-alpine3.24` with production dependencies only. It runs
 as the unprivileged `node` user. Configuration comes from the environment only: `.env` is
-never copied in (see `.dockerignore`). Migrations are not run by the app image.
+never copied in (see `.dockerignore`). Migrations are not run by the app image: the
+`migrate` target (`docker build --target migrate -t shopflow/migrate .`) holds the Prisma
+CLI and every service's migrations, and compose runs it once per database before the app.
 
 ## Layout
 
