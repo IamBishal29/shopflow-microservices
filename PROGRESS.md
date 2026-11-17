@@ -8,6 +8,12 @@
   the branch and resolves). Then `/next-task`: #77 (shutdown still SIGKILLed live;
   root-cause evidence on the issue), the last open M4 issue; reproduce it with the #22
   harness by stopping the Kafka container.
+- Issue: #23 CI image builds, PR #76 open, CI green (did #23 before #22: Docker still down).
+- Branch: chore/23-ci-docker-images (done; waiting for merge)
+- Next step: Syed merges #76. Then start Docker Desktop + add JWT_SECRET to .env, and run
+  the queued live checks: #21 (`docker compose up -d --build`, all healthy, README demo)
+  and #72 (`docker compose stop kafka`; `docker stop shopflow-order-service` < 10 s,
+  exit 0). Next issue: #22 Testcontainers (last open M4 issue; needs Docker locally).
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -158,6 +164,15 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - #77 fix will lower kafkajs `maxWaitTimeInMs` (5000 -> ~500): faster shutdown, ~2 idle
   fetches/s per consumer. OK?
 - CLAUDE.md "Project facts > Test" could list `pnpm test:int` (needs Docker). Add it?
+- #23 CI images (PR #76): `images` matrix job (4 apps + migrate), buildx + GHA cache
+  (scope per image, mode=max), no push; smoke test: uid 1000 and the app loads every
+  module up to the config error; migrate runs `prisma --version`. Verified in CI: ~2 min
+  cold, ~30 s warm (11 CACHED layers). Learning note 32.
+
+## Decisions waiting for Syed
+- Image versioning/promotion (SHA tags, push to GHCR) is not done: GHCR is free for public
+  repos but needs a token setting. Want a follow-up issue for M5 (kind can load local
+  images, so it isn't required)?
 - #21: `docker compose config` says .env has no JWT_SECRET. Add one
   (`openssl rand -base64 48`), or `docker compose up` stops with a clear error.
 - #21: gateway runs with NODE_ENV=development in compose (dev token endpoint on). OK for
@@ -283,4 +298,6 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-16: #20 Dockerfiles, PR #73 (merged; Docker disk moved to D: after C: filled up)
 - 2026-11-17: #21 full docker compose, PR #74 (merged; live check pending Docker)
 - 2026-11-17: #72 bounded shutdown, PR #75 (merged)
+- 2026-11-17: #23 CI image builds, PR #76
 - 2026-11-17: live checks: #21 ok, #72 failed -> #77; #22 Testcontainers, PR #78
+

@@ -163,6 +163,10 @@ never copied in (see `.dockerignore`). Migrations are not run by the app image: 
 `migrate` target (`docker build --target migrate -t shopflow/migrate .`) holds the Prisma
 CLI and every service's migrations, and compose runs it once per database before the app.
 
+CI builds all five images on every PR (matrix job `images`, buildx + GitHub Actions layer
+cache, no registry push) and smoke-tests them: non-root user, and every module loads up to
+the fail-fast config check.
+
 ## Layout
 
 ```

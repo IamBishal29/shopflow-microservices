@@ -52,3 +52,47 @@ jobs:
         run: docker compose config --quiet
         env:
           JWT_SECRET: ci-placeholder-not-a-real-secret-0000
+
+  # Builds every image the Dockerfile produces, so a broken Dockerfile, .dockerignore or
+  # missing production dependency fails the PR instead of the first deploy.
+  # No registry push (free, no account): images only go into the runner's Docker.
+  images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false # one broken image should not hide the state of the others
+      matrix:
+        image: [api-gateway, order-service, payment-service, notification-service, migrate]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build ${{ matrix.image }}
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: ${{ matrix.image == 'migrate' && 'migrate' || 'runtime' }}
+          build-args: APP=${{ matrix.image }}
+          tags: shopflow/${{ matrix.image }}:ci
+          push: false
+          load: true # into the runner's Docker, for the smoke test below
+          # Layer cache in the GitHub Actions cache, one scope per image so the five
+          # builds don't evict each other. mode=max also caches the intermediate stages.
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
+      - name: Smoke test ${{ matrix.image }}
+        if: matrix.image != 'migrate'
+        run: |
+          set -u
+          image=shopflow/${{ matrix.image }}:ci
+          # Runs as the unprivileged node user, never root.
+          test "$(docker run --rm --entrypoint id "$image" -u)" = 1000
+          # With no config the app must load every module (proves the production
+          # dependencies are complete) and then stop at our fail-fast config validation.
+          if output=$(docker run --rm "$image" 2>&1); then
+            echo "expected a config error, but the app started without config"; exit 1
+          fi
+          echo "$output" | grep -A4 'Invalid environment configuration' \
+            || { echo "$output" | tail -20; echo 'app crashed before config validation (missing module?)'; exit 1; }
+      - name: Smoke test migrate
+        if: matrix.image == 'migrate'
+        run: docker run --rm --entrypoint pnpm shopflow/migrate:ci exec prisma --version
