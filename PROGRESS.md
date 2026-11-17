@@ -2,12 +2,12 @@
 
 ## Current
 - Milestone: M4 Containers (M1-M3 complete)
-- Issue: #72 bounded shutdown, PR #75 open (Syed chose #72 before #22 because Docker was down).
-- Branch: fix/72-bounded-kafka-shutdown (done; waiting for merge)
-- Next step: Syed merges #75. Then start Docker Desktop + add JWT_SECRET to .env, and run
-  the queued live checks: #21 (`docker compose up -d --build`, all healthy, README demo)
-  and #72 (`docker compose stop kafka`; `docker stop shopflow-order-service` < 10 s,
-  exit 0). Next issue: #22 Testcontainers (needs Docker), then #23.
+- Issue: #22 Testcontainers, PR #78 open, CI green. #23 = PR #76 also waiting for merge.
+- Branch: test/22-testcontainers (done; waiting for merge)
+- Next step: Syed merges #76, then #78 (PROGRESS.md will conflict; Claude merges main into
+  the branch and resolves). Then `/next-task`: #77 (shutdown still SIGKILLed live;
+  root-cause evidence on the issue), the last open M4 issue; reproduce it with the #22
+  harness by stopping the Kafka container.
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -142,8 +142,22 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   libs/kafka; consumer disconnect, producer disconnect and outbox in-flight batch bounded;
   producer rejects sends once closing. Abandoning is safe (at-least-once + dedupe).
   Unit tests with fake timers. Not verified live (Docker down). Learning note 31.
+- Live checks (Docker back, 2026-11-17): #21 OK (`up -d --build`: 4 services healthy, 5
+  jobs exited 0, README demo PAID / PAYMENT_FAILED / replay / 422, notifications logged).
+  #72 FAILED live: Kafka stopped -> `docker stop` order-service 13 s, exit 137 -> #77.
+- #22 Testcontainers (PR #78; Syed chose apache/kafka GenericContainer + one PR):
+  `pnpm test:int`, globalSetup starts postgres 18.7 + apache/kafka 4.4 once, real
+  migrations; order test (relay -> Kafka, CHECK rollback = no outbox row), payment test
+  (duplicate -> 1 payment, poison -> DLQ via real consumer); CI `integration` job (51 s).
+  Found: consumer.disconnect waits for the 5 s fetch long-poll (maxWaitTimeInMs 500 ->
+  362 ms), noted on #77. Learning note 33.
 
 ## Decisions waiting for Syed
+- `.env` still has no JWT_SECRET (`docker compose up` refuses). For the live checks Claude
+  passed a throwaway one from the shell. Please add your own.
+- #77 fix will lower kafkajs `maxWaitTimeInMs` (5000 -> ~500): faster shutdown, ~2 idle
+  fetches/s per consumer. OK?
+- CLAUDE.md "Project facts > Test" could list `pnpm test:int` (needs Docker). Add it?
 - #21: `docker compose config` says .env has no JWT_SECRET. Add one
   (`openssl rand -base64 48`), or `docker compose up` stops with a clear error.
 - #21: gateway runs with NODE_ENV=development in compose (dev token endpoint on). OK for
@@ -268,4 +282,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-16: #14 notification consumer + sender port, PR #71 (merged)
 - 2026-11-16: #20 Dockerfiles, PR #73 (merged; Docker disk moved to D: after C: filled up)
 - 2026-11-17: #21 full docker compose, PR #74 (merged; live check pending Docker)
-- 2026-11-17: #72 bounded shutdown, PR #75
+- 2026-11-17: #72 bounded shutdown, PR #75 (merged)
+- 2026-11-17: live checks: #21 ok, #72 failed -> #77; #22 Testcontainers, PR #78
