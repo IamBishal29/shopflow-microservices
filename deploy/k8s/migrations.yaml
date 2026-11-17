@@ -1,0 +1,62 @@
+# Prisma migrations, one Job per service database (the compose *-migrate services).
+# scripts/k8s-up.sh deletes and recreates them on every deploy (a finished Job never runs
+# again). Until Postgres and postgres-init are done they fail and are retried (backoff).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: order-service-migrate
+  labels: { app.kubernetes.io/component: migration }
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, runAsUser: 1000 }
+      containers:
+        - name: migrate
+          image: shopflow/migrate
+          imagePullPolicy: IfNotPresent
+          args: [--config, apps/order-service/prisma.config.ts]
+          envFrom:
+            - secretRef: { name: order-service } # the service's own DATABASE_URL
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: payment-service-migrate
+  labels: { app.kubernetes.io/component: migration }
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, runAsUser: 1000 }
+      containers:
+        - name: migrate
+          image: shopflow/migrate
+          imagePullPolicy: IfNotPresent
+          args: [--config, apps/payment-service/prisma.config.ts]
+          envFrom:
+            - secretRef: { name: payment-service } # the service's own DATABASE_URL
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: notification-service-migrate
+  labels: { app.kubernetes.io/component: migration }
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, runAsUser: 1000 }
+      containers:
+        - name: migrate
+          image: shopflow/migrate
+          imagePullPolicy: IfNotPresent
+          args: [--config, apps/notification-service/prisma.config.ts]
+          envFrom:
+            - secretRef: { name: notification-service } # the service's own DATABASE_URL
