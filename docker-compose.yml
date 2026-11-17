@@ -1,6 +1,36 @@
-# Local infrastructure.
+# The whole stack: `docker compose up -d --build` (needs JWT_SECRET in .env).
+# Infra only, for running the apps on the host with `pnpm start:*`:
+#   docker compose up -d postgres postgres-init kafka kafka-init kafka-ui redis
 # Database-per-service: one Postgres server, one database + role per service
 # ("orders" for order-service; "payments" and "notifications" created by postgres-init).
+#
+# Startup order (depends_on conditions):
+#   postgres (healthy) -> postgres-init (done) -> *-migrate (done) -> service
+#   kafka (healthy) -> kafka-init (topics, done) -> service
+#   order-service (healthy) + redis (healthy) -> api-gateway
+# depends_on only orders the FIRST start. If Postgres or Kafka goes down later, the apps
+# keep running: readiness turns 503 and Kafka consumers/relays retry (see learning note 30).
+
+x-migrate: &migrate
+  image: shopflow/migrate
+  build: { context: ., target: migrate }
+  restart: 'no'
+  depends_on:
+    postgres-init:
+      condition: service_completed_successfully
+
+x-app: &app
+  restart: unless-stopped
+  # Docker's default (10 s) before SIGKILL; graceful shutdown normally takes < 1 s.
+  stop_grace_period: 10s
+
+# Ready = the service answers /health/ready (its DB is reachable). Gates dependants.
+x-healthcheck: &healthcheck
+  interval: 5s
+  timeout: 3s
+  retries: 12
+  start_period: 10s
+
 services:
   postgres:
     image: postgres:18.7-alpine3.24
@@ -138,6 +168,113 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # --- migrations: one-shot jobs, one per service database -------------------------------
+  order-migrate:
+    <<: *migrate
+    container_name: shopflow-order-migrate
+    environment:
+      ORDER_DATABASE_URL: postgresql://${POSTGRES_USER:-shopflow}:${POSTGRES_PASSWORD:-shopflow}@postgres:5432/${POSTGRES_DB:-orders}
+    command: ['--config', 'apps/order-service/prisma.config.ts']
+
+  payment-migrate:
+    <<: *migrate
+    container_name: shopflow-payment-migrate
+    environment:
+      PAYMENT_DATABASE_URL: postgresql://payments:${PAYMENTS_DB_PASSWORD:-payments}@postgres:5432/payments
+    command: ['--config', 'apps/payment-service/prisma.config.ts']
+
+  notification-migrate:
+    <<: *migrate
+    container_name: shopflow-notification-migrate
+    environment:
+      NOTIFICATION_DATABASE_URL: postgresql://notifications:${NOTIFICATIONS_DB_PASSWORD:-notifications}@postgres:5432/notifications
+    command: ['--config', 'apps/notification-service/prisma.config.ts']
+
+  # --- services (Dockerfile, one image per APP) -------------------------------------------
+  order-service:
+    <<: *app
+    image: shopflow/order-service
+    build: { context: ., args: { APP: order-service } }
+    container_name: shopflow-order-service
+    depends_on:
+      order-migrate:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      ORDER_SERVICE_PORT: 3001
+      ORDER_DATABASE_URL: postgresql://${POSTGRES_USER:-shopflow}:${POSTGRES_PASSWORD:-shopflow}@postgres:5432/${POSTGRES_DB:-orders}
+      KAFKA_BROKERS: kafka:29092
+    ports:
+      - '${ORDER_SERVICE_PORT:-3001}:3001'
+    healthcheck:
+      <<: *healthcheck
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:3001/health/ready']
+
+  payment-service:
+    <<: *app
+    image: shopflow/payment-service
+    build: { context: ., args: { APP: payment-service } }
+    container_name: shopflow-payment-service
+    depends_on:
+      payment-migrate:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      PAYMENT_SERVICE_PORT: 3002
+      PAYMENT_DATABASE_URL: postgresql://payments:${PAYMENTS_DB_PASSWORD:-payments}@postgres:5432/payments
+      KAFKA_BROKERS: kafka:29092
+    ports:
+      - '${PAYMENT_SERVICE_PORT:-3002}:3002'
+    healthcheck:
+      <<: *healthcheck
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:3002/health/ready']
+
+  notification-service:
+    <<: *app
+    image: shopflow/notification-service
+    build: { context: ., args: { APP: notification-service } }
+    container_name: shopflow-notification-service
+    depends_on:
+      notification-migrate:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      NOTIFICATION_SERVICE_PORT: 3003
+      NOTIFICATION_DATABASE_URL: postgresql://notifications:${NOTIFICATIONS_DB_PASSWORD:-notifications}@postgres:5432/notifications
+      KAFKA_BROKERS: kafka:29092
+    ports:
+      - '${NOTIFICATION_SERVICE_PORT:-3003}:3003'
+    healthcheck:
+      <<: *healthcheck
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:3003/health/ready']
+
+  api-gateway:
+    <<: *app
+    image: shopflow/api-gateway
+    build: { context: ., args: { APP: api-gateway } }
+    container_name: shopflow-api-gateway
+    depends_on:
+      order-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Local stack only: enables POST /auth/token so the README demo can get dev tokens.
+      NODE_ENV: development
+      GATEWAY_PORT: 3000
+      ORDER_SERVICE_URL: http://order-service:3001
+      REDIS_URL: redis://redis:6379
+      # No default on purpose: a secret baked into a committed file is a public secret.
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET (32+ chars) in .env}
+    ports:
+      - '${GATEWAY_PORT:-3000}:3000'
+    healthcheck:
+      <<: *healthcheck
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:3000/health/ready']
 
 volumes:
   postgres-data:

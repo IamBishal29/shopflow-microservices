@@ -30,6 +30,26 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --offline --store-dir /pnpm/store \
  && pnpm exec nest build "${APP}"
 
+# --- migrate: one-shot migration job (docker build --target migrate) ---------------------
+# Tooling image with the Prisma CLI and every service's migrations, no app code. Compose
+# (and later a Kubernetes Job) runs it once per service before the app starts, so app
+# replicas never race each other to migrate and the app image stays free of the CLI.
+#   command: --config apps/<service>/prisma.config.ts   (+ <SERVICE>_DATABASE_URL in env)
+FROM deps AS migrate
+COPY apps/order-service/prisma.config.ts apps/order-service/
+COPY apps/order-service/prisma apps/order-service/prisma
+COPY apps/payment-service/prisma.config.ts apps/payment-service/
+COPY apps/payment-service/prisma apps/payment-service/prisma
+COPY apps/notification-service/prisma.config.ts apps/notification-service/
+COPY apps/notification-service/prisma apps/notification-service/prisma
+# Scripts stay on: @prisma/engines' install script fetches the schema engine migrate needs.
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --offline --store-dir /pnpm/store
+ENV CHECKPOINT_DISABLE=1 \
+    PRISMA_HIDE_UPDATE_MESSAGE=1
+USER node
+ENTRYPOINT ["pnpm", "exec", "prisma", "migrate", "deploy"]
+
 # --- prod-deps: runtime packages only (no TypeScript, Jest, Prisma CLI, Nest CLI) --------
 FROM deps AS prod-deps
 # No install scripts: production packages need none, and the Prisma CLI that postinstall

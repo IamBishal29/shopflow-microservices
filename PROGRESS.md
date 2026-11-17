@@ -2,16 +2,12 @@
 
 ## Current
 - Milestone: M4 Containers (M1-M3 complete)
-- Issue: #20 multi-stage Dockerfiles (Syed chose: node:26-alpine, one shared Dockerfile
-  with APP build-arg, verify with real Docker).
-- Branch: chore/20-dockerfiles (IN PROGRESS, pushed, no PR yet). Dockerfile,
-  .dockerignore, README section and learning note 29 are committed but NOT built yet:
-  Docker Desktop was not running.
-- Next step (needs Docker Desktop running): for each APP build
-  `docker build --build-arg APP=<app> -t shopflow/<app> .`; check `docker run --rm
-  --entrypoint id shopflow/<app>` -> uid=1000(node); run order-service against compose
-  Postgres (health/ready 200); note `docker images` sizes; fix anything the build
-  reveals; then open the PR (Closes #20) with the sizes.
+- Issue: #21 full docker compose, PR #74 open. NOT verified live (Docker Desktop was
+  not running, and Claude may not start it).
+- Branch: chore/21-full-compose
+- Next step: Syed starts Docker Desktop and adds JWT_SECRET to .env. Claude runs
+  `docker compose up -d --build`, checks `ps` (4 healthy, jobs exited 0) and the README demo,
+  then Syed merges #74. Next issue: #22 Testcontainers (or #72 shutdown hang, also M4).
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -130,8 +126,26 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   pure notificationFor (integer amount formatting), NotificationSender port + log adapter
   (token NOTIFICATION_SENDER), repository inserts row + sends in one transaction (10 s
   timeout; P2002 -> duplicate). Not verified live (Docker down) (PR #71, learning note 28)
+- #20 Dockerfile (Syed chose: node:26-alpine, one file + APP build-arg): deps (pnpm
+  fetch, cache mount) -> build -> prod-deps (rm node_modules first, --prod) -> runtime
+  node:26.13.1-alpine3.24, USER node, read-only code, exec node as PID 1; 476 MB per
+  image (was 971 MB: pnpm fetch left every package in .pnpm). Verified: builds, uid
+  1000, ready 200 vs compose Postgres, docker stop 558 ms exit 0 with Kafka up
+  (PR #73, learning note 29). Found: #72 shutdown hangs while Kafka unreachable;
+  compose Kafka advertises localhost only (noted on #21).
+- #21 compose (PR #74): `migrate` Dockerfile target (Prisma CLI + migrations, no app
+  code) run as one-shot jobs per DB; 4 services with readiness healthchecks; startup gated
+  postgres -> postgres-init -> *-migrate -> app, kafka -> kafka-init -> app, order-service
+  + redis -> gateway; gateway NODE_ENV=development for the demo; JWT_SECRET required
+  (`:?`); CI runs `docker compose config`. Learning note 30. Not verified live yet.
 
 ## Decisions waiting for Syed
+- #21: `docker compose config` says .env has no JWT_SECRET. Add one
+  (`openssl rand -base64 48`), or `docker compose up` stops with a clear error.
+- #21: gateway runs with NODE_ENV=development in compose (dev token endpoint on). OK for
+  the local stack? Apps use host ports 3000-3003, so stop compose apps before `pnpm start:*`.
+- #21: the migrate image carries all dev deps (big, tooling only). Slim it later?
+- The last PROGRESS commit of #20 (a9e27c6) was pushed after #73 merged; restored here.
 - Please add to `.env.example` and `.env` (Claude may not read/edit them):
   `PAYMENT_SERVICE_PORT=3002`,
   `PAYMENT_DATABASE_URL=postgresql://payments:payments@localhost:5432/payments`.
@@ -177,8 +191,10 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   Check GCM on your side, or keep that workaround.
 - #51 not checked live: POST /orders via the gateway with `x-correlation-id: demo-1`;
   kafbat UI should show demo-1 on order.created and payment.succeeded.
-- Docker Desktop did not start from Claude's shell; please start it before the next
-  session so live checks can run.
+- Docker Desktop runs now (disk image moved to D:; C: had filled up and crashed it).
+  The queued live checks (#18, #51, #53, #56, #61, #6, #14) can be run any time.
+- Images are 476 MB each: every service ships all prod deps of the single root
+  package.json. Per-service deps would need a pnpm workspace split. Worth it?
 - POST /orders now needs an Idempotency-Key header (400 without): README demo/curl
   examples that create orders through the gateway must send one.
 - Optional follow-up: validateEnv is copied in 3 apps; extract a helper?
@@ -246,4 +262,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-16: #67 consumer background start in libs/kafka, PR #69 (merged)
 - 2026-11-16: #68 notification-service scaffold, PR #70 (merged)
 - 2026-11-16: #14 notification consumer + sender port, PR #71 (merged)
-- 2026-11-16: #20 Dockerfiles written on chore/20-dockerfiles; waiting for Docker to verify
+- 2026-11-16: #20 Dockerfiles, PR #73 (merged; Docker disk moved to D: after C: filled up)
+- 2026-11-17: #21 full docker compose, PR #74 (live check pending Docker)
