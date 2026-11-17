@@ -6,6 +6,10 @@ labels:
   - pairs: { app.kubernetes.io/part-of: shopflow }
 resources:
   - namespace.yaml
+  - postgres.yaml
+  - redis.yaml
+  - kafka.yaml
+  - migrations.yaml
   - api-gateway.yaml
   - order-service.yaml
   - payment-service.yaml
@@ -17,6 +21,7 @@ images:
   - { name: shopflow/order-service, newTag: dev }
   - { name: shopflow/payment-service, newTag: dev }
   - { name: shopflow/notification-service, newTag: dev }
+  - { name: shopflow/migrate, newTag: dev }
 # One Secret per app (least privilege: a service only sees its own credentials), built
 # from gitignored files; copy secrets/*.env.example to secrets/*.env first. The name gets
 # a content hash, so changing a secret rolls the pods that use it.
@@ -25,3 +30,4 @@ secretGenerator:
   - { name: order-service, envs: [secrets/order-service.env] }
   - { name: payment-service, envs: [secrets/payment-service.env] }
   - { name: notification-service, envs: [secrets/notification-service.env] }
+  - { name: postgres, envs: [secrets/postgres.env] }

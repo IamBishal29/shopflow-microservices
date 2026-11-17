@@ -2,11 +2,10 @@
 
 ## Current
 - Milestone: M5 Kubernetes (M1-M4 complete)
-- Issue: #24 kind + manifests, PR #80 open
-- Branch: chore/24-kind-manifests (done; waiting for merge)
-- Next step: Syed merges #80. Then `/next-task`: #25 (Strimzi Kafka + Postgres + Redis in
-  the cluster, plus a migrate Job); the services become ready then. The kind cluster
-  `shopflow` is still running (delete: `kind delete cluster --name shopflow`).
+- Issue: #25 Strimzi + data stores, PR #81 open
+- Branch: chore/25-k8s-data-kafka (done; waiting for merge)
+- Next step: Syed merges #81. Then `/next-task`: #26 Ingress for the api-gateway (last M5
+  issue). The kind cluster `shopflow` is running with the full stack.
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -170,7 +169,20 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   Live: back-end pods Running 0/1 with 0 restarts (no DB yet), gateway 1/1, port-forward
   /health 200. Learning note 35.
 
+- #24 merged (PR #80).
+- #25 Strimzi + data (PR #81; Syed chose one PR + pinned release URL): Strimzi 1.3.1
+  operator (deploy/strimzi, RoleBinding subject patch), Kafka 4.3.2 KRaft node pool +
+  9 KafkaTopics (API kafka.strimzi.io/v1), Postgres StatefulSet + init Job, 3 migration
+  Jobs, Redis Deployment, script orders operator -> CRDs -> apply -> waits. Live: saga
+  PAID / PAYMENT_FAILED in 5 s, replay, 422, notifications; operator healed a deleted
+  Kafka pod in 23 s. Learning note 36.
+
 ## Decisions waiting for Syed
+- #25: Strimzi 1.3.1 runs Kafka 4.3.2 (newest it supports) vs 4.4.0 in compose. OK?
+- #25: deploy/k8s/secrets/postgres.env repeats the role passwords that are inside the
+  service DB URLs; keep them in sync (could become one source with a small script).
+- #25: apps may start before their migrations finish (readiness checks only the
+  connection). Init container per app as a follow-up issue?
 - kind was installed with winget, but this shell's PATH doesn't have it until a restart
   (winget Links folder). Open a new terminal before running scripts/k8s-up.sh.
 - #24: gateway in k8s also runs NODE_ENV=development (dev token endpoint), as in compose.
@@ -319,3 +331,4 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-17: live checks: #21 ok, #72 failed -> #77; #22 Testcontainers, PR #78
 - 2026-11-17: #22 + #23 merged; #77 PID 1 shutdown fix, PR #79
 - 2026-11-17: #77 merged; #24 kind + Kustomize manifests, PR #80
+- 2026-11-17: #24 merged; #25 Strimzi Kafka + Postgres + Redis in kind, PR #81

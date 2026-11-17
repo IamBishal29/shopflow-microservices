@@ -169,9 +169,14 @@ the fail-fast config check.
 
 ## Kubernetes (kind)
 
-Needs [kind](https://kind.sigs.k8s.io/) and kubectl. The manifests are plain YAML with
-Kustomize (`deploy/k8s`): one Deployment, Service and ConfigMap per app, in namespace
-`shopflow`.
+Needs [kind](https://kind.sigs.k8s.io/) and kubectl, plus internet access for the Strimzi
+operator. The manifests are plain YAML with Kustomize, all in namespace `shopflow`:
+
+- `deploy/strimzi`: the Strimzi operator (pinned release 1.3.1). It runs Kafka for us.
+- `deploy/k8s`: one Deployment, Service and ConfigMap per app. Postgres is a StatefulSet
+  with a volume. Redis is a Deployment (disposable data, as in compose). Kafka (KRaft) and
+  its 9 topics are Strimzi `Kafka`/`KafkaTopic` resources. Jobs create the service
+  databases and run the Prisma migrations.
 
 ```bash
 # Secrets come from gitignored files; fill in real values (JWT_SECRET: openssl rand -base64 48)
@@ -182,11 +187,13 @@ kubectl -n shopflow port-forward svc/api-gateway 3000:3000
 kind delete cluster --name shopflow    # tear down
 ```
 
-Re-run `scripts/k8s-up.sh` after a code change: it rebuilds, reloads and restarts the pods.
-Postgres, Kafka (Strimzi) and Redis come in #25. Until then the three back-end services
-run but stay **not ready** (readiness checks the database), and nothing restarts them,
-because liveness only checks the process. The gateway is ready: its readiness
-deliberately ignores downstream services.
+The first run takes about 5 minutes (image builds, `kind load`, Kafka start). Re-run
+`scripts/k8s-up.sh` after a code change: it rebuilds, reloads, migrates and restarts the
+pods. With the gateway port-forwarded to 3000, the [demo script](#demo-script) works
+unchanged.
+
+Liveness only checks the process and readiness checks the database. So while Postgres is
+still starting, the back-end pods stay not ready instead of restart-looping.
 
 ## Layout
 
