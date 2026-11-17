@@ -167,6 +167,27 @@ CI builds all five images on every PR (matrix job `images`, buildx + GitHub Acti
 cache, no registry push) and smoke-tests them: non-root user, and every module loads up to
 the fail-fast config check.
 
+## Kubernetes (kind)
+
+Needs [kind](https://kind.sigs.k8s.io/) and kubectl. The manifests are plain YAML with
+Kustomize (`deploy/k8s`): one Deployment, Service and ConfigMap per app, in namespace
+`shopflow`.
+
+```bash
+# Secrets come from gitignored files; fill in real values (JWT_SECRET: openssl rand -base64 48)
+for f in deploy/k8s/secrets/*.env.example; do cp "$f" "${f%.example}"; done
+scripts/k8s-up.sh                      # create cluster, build + kind load images, apply
+kubectl -n shopflow get pods
+kubectl -n shopflow port-forward svc/api-gateway 3000:3000
+kind delete cluster --name shopflow    # tear down
+```
+
+Re-run `scripts/k8s-up.sh` after a code change: it rebuilds, reloads and restarts the pods.
+Postgres, Kafka (Strimzi) and Redis come in #25. Until then the three back-end services
+run but stay **not ready** (readiness checks the database), and nothing restarts them,
+because liveness only checks the process. The gateway is ready: its readiness
+deliberately ignores downstream services.
+
 ## Layout
 
 ```
