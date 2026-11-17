@@ -4,3 +4,8 @@ allowBuilds:
   # Download telemetry pulled in by swagger-ui-dist (#6); not needed, never run it.
   '@scarf/scarf': false
   prisma: true
+  # Testcontainers (#22) pulls these in via docker-modem; only optional native add-ons
+  # (Docker over SSH) or a version check. Not needed for the local Docker socket.
+  cpu-features: false
+  protobufjs: false
+  ssh2: false
