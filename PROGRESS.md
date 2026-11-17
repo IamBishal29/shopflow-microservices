@@ -2,10 +2,11 @@
 
 ## Current
 - Milestone: M5 Kubernetes (M1-M4 complete)
-- Issue: #25 Strimzi + data stores, PR #81 open
-- Branch: chore/25-k8s-data-kafka (done; waiting for merge)
-- Next step: Syed merges #81. Then `/next-task`: #26 Ingress for the api-gateway (last M5
-  issue). The kind cluster `shopflow` is running with the full stack.
+- Issue: #26 cluster edge, PR #82 open (last M5 issue)
+- Branch: chore/26-gateway-api-edge (done; waiting for merge)
+- Next step: Syed merges #82, closing M5. Then `/next-task`: M6 Production polish, lowest
+  is #27 (nestjs-pino structured logs with correlation ID). The kind cluster runs the
+  full stack at http://shopflow.localhost:8088.
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -177,7 +178,17 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   PAID / PAYMENT_FAILED in 5 s, replay, 422, notifications; operator healed a deleted
   Kafka pod in 23 s. Learning note 36.
 
+- #25 merged (PR #81).
+- #26 edge (PR #82; Syed chose Gateway API + Envoy Gateway because ingress-nginx was
+  archived 2026-03; ADR 0007, ADR 0004 amended): Envoy Gateway v1.9.3 (pinned URL),
+  edge.yaml GatewayClass/EnvoyProxy(NodePort 30080)/Gateway/HTTPRoute -> api-gateway
+  only, kind port map 127.0.0.1:8088. Live from a fresh cluster (7.8 min): demo via
+  shopflow.localhost:8088 PAID/PAYMENT_FAILED, other Host 404, LAN IP refused.
+  Learning note 37.
+
 ## Decisions waiting for Syed
+- #26: an old kind cluster has no port mapping; `kind delete cluster --name shopflow` once
+  before running scripts/k8s-up.sh (already done on this machine).
 - #25: Strimzi 1.3.1 runs Kafka 4.3.2 (newest it supports) vs 4.4.0 in compose. OK?
 - #25: deploy/k8s/secrets/postgres.env repeats the role passwords that are inside the
   service DB URLs; keep them in sync (could become one source with a small script).
@@ -332,3 +343,4 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-17: #22 + #23 merged; #77 PID 1 shutdown fix, PR #79
 - 2026-11-17: #77 merged; #24 kind + Kustomize manifests, PR #80
 - 2026-11-17: #24 merged; #25 Strimzi Kafka + Postgres + Redis in kind, PR #81
+- 2026-11-17: #25 merged; #26 Gateway API edge (Envoy Gateway), PR #82
