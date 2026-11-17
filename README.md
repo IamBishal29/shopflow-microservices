@@ -138,14 +138,15 @@ echo '{not json' | MSYS_NO_PATHCONV=1 docker exec -i shopflow-kafka \
 
 ## Scripts
 
-| Command             | What it does                                           |
-| ------------------- | ------------------------------------------------------ |
-| `pnpm lint`         | ESLint (typescript-eslint type-checked), zero warnings |
-| `pnpm format:check` | Prettier check                                         |
-| `pnpm typecheck`    | `tsc --noEmit` over apps and libs                      |
-| `pnpm test`         | Unit tests (`*.spec.ts` under `src/`)                  |
-| `pnpm test:e2e`     | E2E tests with Supertest (`apps/*/test/*.e2e-spec.ts`) |
-| `pnpm build`        | Builds every app into `dist/`                          |
+| Command             | What it does                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------- |
+| `pnpm lint`         | ESLint (typescript-eslint type-checked), zero warnings                                                  |
+| `pnpm format:check` | Prettier check                                                                                          |
+| `pnpm typecheck`    | `tsc --noEmit` over apps and libs                                                                       |
+| `pnpm test`         | Unit tests (`*.spec.ts` under `src/`)                                                                   |
+| `pnpm test:e2e`     | E2E tests with Supertest (`apps/*/test/*.e2e-spec.ts`)                                                  |
+| `pnpm test:int`     | Integration tests, real Postgres + Kafka via Testcontainers (needs Docker; `apps/*/test/*.int-spec.ts`) |
+| `pnpm build`        | Builds every app into `dist/`                                                                           |
 
 ## Docker images
 
