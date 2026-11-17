@@ -1,8 +1,13 @@
 # Local Kubernetes cluster for ShopFlow (ADR 0004). One node is enough: we learn the
 # objects (Deployments, Services, probes), not scheduling across machines.
 # Create with scripts/k8s-up.sh, delete with `kind delete cluster --name shopflow`.
+# Port mappings are fixed at creation: after changing them, delete and recreate.
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: shopflow
 nodes:
   - role: control-plane
+    # The Envoy proxy's NodePort (deploy/k8s/edge.yaml) on the host, loopback only:
+    # http://shopflow.localhost:8088 (8080 is Kafka UI in compose).
+    extraPortMappings:
+      - { containerPort: 30080, hostPort: 8088, listenAddress: 127.0.0.1, protocol: TCP }

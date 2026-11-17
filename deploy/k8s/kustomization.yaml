@@ -6,6 +6,7 @@ labels:
   - pairs: { app.kubernetes.io/part-of: shopflow }
 resources:
   - namespace.yaml
+  - edge.yaml
   - postgres.yaml
   - redis.yaml
   - kafka.yaml

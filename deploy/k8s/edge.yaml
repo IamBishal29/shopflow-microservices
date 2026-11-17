@@ -1,0 +1,61 @@
+# The cluster's front door (Gateway API, ADR 0007). Roles, as the API intends:
+#   GatewayClass  platform team: which controller implements Gateways (Envoy Gateway)
+#   Gateway       cluster operator: a listener (port, hostname); here: one Envoy proxy
+#   HTTPRoute     app team: which paths go to which Service
+# Only api-gateway is routed; every other Service stays ClusterIP, unreachable from outside.
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: envoy
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+---
+# kind has no cloud load balancer, so the proxy's Service is a NodePort on a fixed port
+# that deploy/kind/cluster.yaml maps to the host (127.0.0.1:8088). In a cloud cluster you
+# would drop this and get a LoadBalancer with a public IP.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: edge
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        type: NodePort
+        patch:
+          type: StrategicMerge
+          value:
+            spec:
+              ports:
+                - { port: 80, nodePort: 30080 }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: shopflow
+spec:
+  gatewayClassName: envoy
+  infrastructure:
+    parametersRef: { group: gateway.envoyproxy.io, kind: EnvoyProxy, name: edge }
+  listeners:
+    # Plain HTTP for local use. In production TLS terminates here (certificateRefs to a
+    # cert-manager Secret) and the hop to api-gateway stays inside the cluster.
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: shopflow.localhost # *.localhost resolves to 127.0.0.1, no hosts-file edit
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: api-gateway
+spec:
+  parentRefs:
+    - { name: shopflow }
+  hostnames: [shopflow.localhost]
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: / }
+      backendRefs:
+        - { name: api-gateway, port: 3000 }
