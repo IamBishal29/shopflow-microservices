@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
 import { IHeaders, Kafka, Partitioners, Producer } from 'kafkajs';
 import { KAFKA_CLIENT } from './kafka.options';
+import { settleWithin, SHUTDOWN_STEP_TIMEOUT_MS } from './shutdown';
 
 export interface OutgoingMessage {
   /** Partition key. Use the aggregate ID (e.g. orderId) so one aggregate's events stay ordered. */
@@ -20,6 +21,7 @@ export class KafkaProducerService implements OnModuleInit, OnApplicationShutdown
   private readonly logger = new Logger(KafkaProducerService.name);
   private readonly producer: Producer;
   private connecting: Promise<void> | undefined;
+  private closing = false;
 
   constructor(@Inject(KAFKA_CLIENT) kafka: Kafka) {
     this.producer = kafka.producer({
@@ -41,13 +43,27 @@ export class KafkaProducerService implements OnModuleInit, OnApplicationShutdown
   }
 
   async send(topic: string, messages: readonly OutgoingMessage[]): Promise<void> {
+    // Fail fast instead of starting a new connect-retry loop while the process is stopping;
+    // the caller leaves the work undone (outbox row unpublished, offset uncommitted).
+    if (this.closing) throw new Error('Kafka producer is shutting down');
     await this.ensureConnected();
     await this.producer.send({ topic, acks: -1, messages: [...messages] });
   }
 
-  /** Runs last during shutdown, after consumers have stopped and finished in-flight work. */
+  /**
+   * Runs last during shutdown, after consumers have stopped and finished in-flight work.
+   * Bounded: with Kafka unreachable, disconnect() can wait on connection retries.
+   */
   async onApplicationShutdown(): Promise<void> {
-    await this.producer.disconnect();
+    this.closing = true;
+    const outcome = await settleWithin(this.producer.disconnect());
+    if (outcome.status === 'timed-out') {
+      this.logger.warn(
+        `Producer did not disconnect within ${SHUTDOWN_STEP_TIMEOUT_MS} ms (Kafka unreachable?)`,
+      );
+    } else if (outcome.status === 'failed') {
+      this.logger.warn(`Producer disconnect failed: ${describe(outcome.error)}`);
+    }
   }
 
   private ensureConnected(): Promise<void> {

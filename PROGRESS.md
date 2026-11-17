@@ -2,12 +2,12 @@
 
 ## Current
 - Milestone: M4 Containers (M1-M3 complete)
-- Issue: #21 full docker compose, PR #74 open. NOT verified live (Docker Desktop was
-  not running, and Claude may not start it).
-- Branch: chore/21-full-compose
-- Next step: Syed starts Docker Desktop and adds JWT_SECRET to .env. Claude runs
-  `docker compose up -d --build`, checks `ps` (4 healthy, jobs exited 0) and the README demo,
-  then Syed merges #74. Next issue: #22 Testcontainers (or #72 shutdown hang, also M4).
+- Issue: #72 bounded shutdown, PR #75 open (Syed chose #72 before #22 because Docker was down).
+- Branch: fix/72-bounded-kafka-shutdown (done; waiting for merge)
+- Next step: Syed merges #75. Then start Docker Desktop + add JWT_SECRET to .env, and run
+  the queued live checks: #21 (`docker compose up -d --build`, all healthy, README demo)
+  and #72 (`docker compose stop kafka`; `docker stop shopflow-order-service` < 10 s,
+  exit 0). Next issue: #22 Testcontainers (needs Docker), then #23.
 
 ## Interview plan (interview ~2026-11-17, ~6 h/day)
 Work `interview-critical` issues first, in this order (GitHub issue numbers):
@@ -137,7 +137,11 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
   code) run as one-shot jobs per DB; 4 services with readiness healthchecks; startup gated
   postgres -> postgres-init -> *-migrate -> app, kafka -> kafka-init -> app, order-service
   + redis -> gateway; gateway NODE_ENV=development for the demo; JWT_SECRET required
-  (`:?`); CI runs `docker compose config`. Learning note 30. Not verified live yet.
+  (`:?`); CI runs `docker compose config`. Learning note 30. Merged without the live check.
+- #72 bounded shutdown (PR #75): `settleWithin` + SHUTDOWN_STEP_TIMEOUT_MS (3 s) in
+  libs/kafka; consumer disconnect, producer disconnect and outbox in-flight batch bounded;
+  producer rejects sends once closing. Abandoning is safe (at-least-once + dedupe).
+  Unit tests with fake timers. Not verified live (Docker down). Learning note 31.
 
 ## Decisions waiting for Syed
 - #21: `docker compose config` says .env has no JWT_SECRET. Add one
@@ -263,4 +267,5 @@ Work `interview-critical` issues first, in this order (GitHub issue numbers):
 - 2026-11-16: #68 notification-service scaffold, PR #70 (merged)
 - 2026-11-16: #14 notification consumer + sender port, PR #71 (merged)
 - 2026-11-16: #20 Dockerfiles, PR #73 (merged; Docker disk moved to D: after C: filled up)
-- 2026-11-17: #21 full docker compose, PR #74 (live check pending Docker)
+- 2026-11-17: #21 full docker compose, PR #74 (merged; live check pending Docker)
+- 2026-11-17: #72 bounded shutdown, PR #75

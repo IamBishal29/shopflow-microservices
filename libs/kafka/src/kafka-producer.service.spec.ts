@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { Kafka } from 'kafkajs';
 import { KafkaProducerService } from './kafka-producer.service';
+import { SHUTDOWN_STEP_TIMEOUT_MS } from './shutdown';
 
 function setup() {
   const producer = {
@@ -57,5 +58,32 @@ describe('KafkaProducerService', () => {
     const { producer, service } = setup();
     await service.onApplicationShutdown();
     expect(producer.disconnect).toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('gives up on disconnect after the step timeout while Kafka is unreachable', async () => {
+    jest.useFakeTimers();
+    try {
+      const { producer, service } = setup();
+      producer.disconnect.mockReturnValue(new Promise(() => undefined)); // stuck in retries
+
+      const stopping = service.onApplicationShutdown();
+      await jest.advanceTimersByTimeAsync(SHUTDOWN_STEP_TIMEOUT_MS);
+      await stopping;
+
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('did not disconnect'));
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('rejects sends once shutdown has started, without opening a new connection', async () => {
+    const { producer, service } = setup();
+    await service.onApplicationShutdown();
+
+    await expect(service.send('order.created.v1', [{ key: 'o-1', value: '{}' }])).rejects.toThrow(
+      'shutting down',
+    );
+    expect(producer.connect).not.toHaveBeenCalled();
   });
 });

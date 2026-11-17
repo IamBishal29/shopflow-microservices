@@ -6,7 +6,12 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { DATABASE, TransactionalSqlClient } from '@shopflow/database';
-import { KafkaProducerService, OutgoingMessage } from '@shopflow/kafka';
+import {
+  KafkaProducerService,
+  OutgoingMessage,
+  settleWithin,
+  SHUTDOWN_STEP_TIMEOUT_MS,
+} from '@shopflow/kafka';
 
 interface OutboxRow {
   readonly id: string;
@@ -49,11 +54,21 @@ export class OutboxRelay implements OnApplicationBootstrap, OnModuleDestroy {
     this.schedule(0);
   }
 
-  /** Stop polling and let the current batch finish before Kafka and the DB pool close. */
+  /**
+   * Stop polling and let the current batch finish before Kafka and the DB pool close.
+   * Bounded: a batch stuck in a send to an unreachable Kafka is abandoned; its transaction
+   * rolls back when the pool closes, so the rows stay unpublished and go out after restart.
+   */
   async onModuleDestroy(): Promise<void> {
     this.stopped = true;
     clearTimeout(this.timer);
-    await this.inFlight;
+    if (!this.inFlight) return;
+    const outcome = await settleWithin(this.inFlight);
+    if (outcome.status === 'timed-out') {
+      this.logger.warn(
+        `Outbox batch still running after ${SHUTDOWN_STEP_TIMEOUT_MS} ms; abandoned, it is sent again after restart`,
+      );
+    }
   }
 
   /** One poll. Returns how long to wait before the next one. */

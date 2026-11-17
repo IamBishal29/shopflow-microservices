@@ -12,6 +12,7 @@ import {
   retryTopicOf,
   routeFailure,
 } from './retry-policy';
+import { settleWithin, SHUTDOWN_STEP_TIMEOUT_MS } from './shutdown';
 
 export interface IncomingMessage {
   /** Always the original topic, also when the message is being retried. */
@@ -117,12 +118,24 @@ export class KafkaConsumerService implements OnModuleDestroy {
   /**
    * Runs first during shutdown: stop fetching, let in-flight handlers finish (retry waits
    * are cut short), and leave the groups cleanly while the producer and DB are still open.
+   * Bounded: while Kafka is unreachable disconnect() can wait on connection retries, so we
+   * give up after SHUTDOWN_STEP_TIMEOUT_MS. Uncommitted offsets are simply redelivered.
    */
   async onModuleDestroy(): Promise<void> {
     this.stopping = true;
     this.startTimers.forEach(clearTimeout);
     this.startTimers.clear();
-    await Promise.all(this.consumers.map((consumer) => consumer.disconnect()));
+    const outcome = await settleWithin(
+      Promise.all(this.consumers.map((consumer) => consumer.disconnect())),
+    );
+    if (outcome.status === 'timed-out') {
+      this.logger.warn(
+        `Consumers did not disconnect within ${SHUTDOWN_STEP_TIMEOUT_MS} ms (Kafka unreachable?); ` +
+          'uncommitted messages will be redelivered',
+      );
+    } else if (outcome.status === 'failed') {
+      this.logger.warn(`Consumer disconnect failed: ${describeError(outcome.error).message}`);
+    }
   }
 
   private async start(
