@@ -29,14 +29,26 @@ export async function createTopics(admin: Admin, topics: readonly string[]): Pro
   });
 }
 
-/** Polls `check` until it returns true; integration tests wait on real async systems. */
+/**
+ * Polls `check` until it returns true; integration tests wait on real async systems.
+ * A throwing check counts as "not yet" (e.g. a fresh broker has no group coordinator for
+ * the first seconds); the last error is reported if time runs out.
+ */
 export async function eventually(
   check: () => boolean | Promise<boolean>,
   timeoutMs = 20_000,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
-  while (!(await check())) {
-    if (Date.now() > deadline) throw new Error(`condition not met within ${timeoutMs} ms`);
+  let lastError: unknown;
+  for (;;) {
+    try {
+      if (await check()) return;
+    } catch (error) {
+      lastError = error;
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`condition not met within ${timeoutMs} ms`, { cause: lastError });
+    }
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
 }
