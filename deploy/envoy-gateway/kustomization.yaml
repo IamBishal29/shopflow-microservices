@@ -1,0 +1,8 @@
+# Envoy Gateway (pinned release): the Gateway API CRDs (bundle v1.6.1) plus the controller,
+# in its own namespace envoy-gateway-system. It turns our Gateway/HTTPRoute (deploy/k8s)
+# into Envoy proxy pods. ADR 0007: replaces the archived ingress-nginx.
+#   kubectl apply --server-side -k deploy/envoy-gateway
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://github.com/envoyproxy/gateway/releases/download/v1.9.3/install.yaml
