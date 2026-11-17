@@ -7,3 +7,5 @@ export { KafkaConsumerService, START_RETRY_MS } from './kafka-consumer.service';
 export type { ConsumerSubscription, IncomingMessage } from './kafka-consumer.service';
 export { DEFAULT_RETRY_POLICY, dlqTopicOf, FAILURE_HEADERS, retryTopicOf } from './retry-policy';
 export type { RetryPolicy } from './retry-policy';
+export { SHUTDOWN_STEP_TIMEOUT_MS, settleWithin } from './shutdown';
+export type { StepOutcome } from './shutdown';
