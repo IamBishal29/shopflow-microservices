@@ -232,9 +232,7 @@ describe('KafkaConsumerService', () => {
     await service.onModuleDestroy();
     expect(main.disconnect).toHaveBeenCalled();
     expect(retry.disconnect).toHaveBeenCalled();
-    expect(warn).not.toHaveBeenCalledWith(
-      expect.stringContaining('did not disconnect'),
-    );
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('did not disconnect'));
   });
 
   describe('runInBackground', () => {
@@ -302,9 +300,7 @@ describe('KafkaConsumerService', () => {
       await stopping;
 
       expect(consumer.disconnect).toHaveBeenCalledTimes(2);
-      expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining('did not disconnect'),
-      );
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('did not disconnect'));
     });
   });
 
