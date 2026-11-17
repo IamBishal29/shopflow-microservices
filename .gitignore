@@ -10,3 +10,6 @@ coverage/
 
 # Prisma generated client
 apps/*/src/generated/
+
+# Kubernetes secrets (copy from the .env.example next to them)
+deploy/k8s/secrets/*.env

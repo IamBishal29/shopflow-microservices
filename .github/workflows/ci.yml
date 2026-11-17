@@ -52,6 +52,12 @@ jobs:
         run: docker compose config --quiet
         env:
           JWT_SECRET: ci-placeholder-not-a-real-secret-0000
+      # Renders the Kubernetes manifests (kubectl is preinstalled): catches broken YAML and
+      # kustomization errors. The example secrets stand in for the gitignored real ones.
+      - name: kubectl kustomize
+        run: |
+          for f in deploy/k8s/secrets/*.env.example; do cp "$f" "${f%.example}"; done
+          kubectl kustomize deploy/k8s > /dev/null
 
   # Builds every image the Dockerfile produces, so a broken Dockerfile, .dockerignore or
   # missing production dependency fails the PR instead of the first deploy.
