@@ -169,28 +169,32 @@ the fail-fast config check.
 
 ## Kubernetes (kind)
 
-Needs [kind](https://kind.sigs.k8s.io/) and kubectl, plus internet access for the Strimzi
-operator. The manifests are plain YAML with Kustomize, all in namespace `shopflow`:
+Needs [kind](https://kind.sigs.k8s.io/) and kubectl, plus internet access for the two
+pinned operator releases. The manifests are plain YAML with Kustomize, in namespace
+`shopflow`:
 
 - `deploy/strimzi`: the Strimzi operator (pinned release 1.3.1). It runs Kafka for us.
+- `deploy/envoy-gateway`: Envoy Gateway v1.9.3 with the Gateway API CRDs (ADR 0007).
 - `deploy/k8s`: one Deployment, Service and ConfigMap per app. Postgres is a StatefulSet
   with a volume. Redis is a Deployment (disposable data, as in compose). Kafka (KRaft) and
   its 9 topics are Strimzi `Kafka`/`KafkaTopic` resources. Jobs create the service
-  databases and run the Prisma migrations.
+  databases and run the Prisma migrations. `edge.yaml` is the front door: a Gateway on
+  `http://shopflow.localhost:8088` whose HTTPRoute sends traffic to the api-gateway only.
 
 ```bash
 # Secrets come from gitignored files; fill in real values (JWT_SECRET: openssl rand -base64 48)
 for f in deploy/k8s/secrets/*.env.example; do cp "$f" "${f%.example}"; done
 scripts/k8s-up.sh                      # create cluster, build + kind load images, apply
 kubectl -n shopflow get pods
-kubectl -n shopflow port-forward svc/api-gateway 3000:3000
+curl http://shopflow.localhost:8088/health
 kind delete cluster --name shopflow    # tear down
 ```
 
-The first run takes about 5 minutes (image builds, `kind load`, Kafka start). Re-run
+The first run takes about 8 minutes (image builds, `kind load`, Kafka start). Re-run
 `scripts/k8s-up.sh` after a code change: it rebuilds, reloads, migrates and restarts the
-pods. With the gateway port-forwarded to 3000, the [demo script](#demo-script) works
-unchanged.
+pods. The [demo script](#demo-script) works against the cluster with
+`GW=shopflow.localhost:8088`. The port is bound to 127.0.0.1 only. A cluster created
+before #26 has no port mapping: delete it and run the script again.
 
 Liveness only checks the process and readiness checks the database. So while Postgres is
 still starting, the back-end pods stay not ready instead of restart-looping.
