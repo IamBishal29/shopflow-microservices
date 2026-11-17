@@ -13,6 +13,21 @@ permissions:
   contents: read
 
 jobs:
+  # Real Postgres and Kafka via Testcontainers (GitHub's Ubuntu runners have Docker).
+  # Own job: runs in parallel with verify, and a slow image pull never delays lint/unit.
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:int
+
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 15
