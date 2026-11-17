@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { KafkaProducerService, OutgoingMessage } from '@shopflow/kafka';
+import { KafkaProducerService, OutgoingMessage, SHUTDOWN_STEP_TIMEOUT_MS } from '@shopflow/kafka';
 import { TransactionalSqlClient } from '@shopflow/database';
 import { OutboxRelay, RELAY } from './outbox.relay';
 
@@ -33,8 +33,9 @@ function setup() {
 }
 
 describe('OutboxRelay', () => {
+  const warn = jest.spyOn(Logger.prototype, 'warn');
   beforeAll(() => {
-    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    warn.mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
   });
   afterAll(() => jest.restoreAllMocks());
@@ -136,6 +137,27 @@ describe('OutboxRelay', () => {
       await stopping;
       jest.advanceTimersByTime(RELAY.maxBackoffMs);
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('on shutdown, abandons a batch stuck on an unreachable Kafka after the step timeout', async () => {
+    jest.useFakeTimers();
+    try {
+      const { prisma, relay } = setup();
+      prisma.$transaction.mockImplementationOnce(() => new Promise(() => undefined));
+
+      relay.onApplicationBootstrap();
+      jest.advanceTimersByTime(0);
+      let stopped = false;
+      const stopping = relay.onModuleDestroy().then(() => (stopped = true));
+      await jest.advanceTimersByTimeAsync(SHUTDOWN_STEP_TIMEOUT_MS - 1);
+      expect(stopped).toBe(false);
+
+      await jest.advanceTimersByTimeAsync(1);
+      await stopping;
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('abandoned'));
     } finally {
       jest.useRealTimers();
     }
