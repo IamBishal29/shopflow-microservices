@@ -8,6 +8,7 @@ import {
 } from './kafka-consumer.service';
 import { KafkaProducerService, OutgoingMessage } from './kafka-producer.service';
 import { RetryPolicy } from './retry-policy';
+import { SHUTDOWN_STEP_TIMEOUT_MS } from './shutdown';
 
 type RunConfig = { autoCommit: boolean; eachMessage: (p: EachMessagePayload) => Promise<void> };
 type Handle = (m: IncomingMessage) => Promise<void>;
@@ -90,8 +91,9 @@ const sentHeaders = (producer: { send: SendMock }) =>
   producer.send.mock.calls[0]?.[1][0]?.headers ?? {};
 
 describe('KafkaConsumerService', () => {
+  const warn = jest.spyOn(Logger.prototype, 'warn');
   beforeAll(() => {
-    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    warn.mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
   });
   afterAll(() => jest.restoreAllMocks());
@@ -230,6 +232,9 @@ describe('KafkaConsumerService', () => {
     await service.onModuleDestroy();
     expect(main.disconnect).toHaveBeenCalled();
     expect(retry.disconnect).toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalledWith(
+      expect.stringContaining('did not disconnect'),
+    );
   });
 
   describe('runInBackground', () => {
@@ -279,6 +284,27 @@ describe('KafkaConsumerService', () => {
 
       await jest.advanceTimersByTimeAsync(START_RETRY_MS * 3);
       expect(consumer.connect).toHaveBeenCalledTimes(2);
+    });
+
+    it('finishes shutdown within the step timeout while connect is still retrying', async () => {
+      const { consumer, service, subscribe } = backgroundSetup();
+      // Kafka unreachable: kafkajs keeps retrying, so connect and disconnect never settle.
+      consumer.connect.mockReturnValue(new Promise(() => undefined));
+      consumer.disconnect.mockReturnValue(new Promise(() => undefined));
+      subscribe();
+      await jest.advanceTimersByTimeAsync(0);
+
+      let stopped = false;
+      const stopping = service.onModuleDestroy().then(() => (stopped = true));
+      await jest.advanceTimersByTimeAsync(SHUTDOWN_STEP_TIMEOUT_MS - 1);
+      expect(stopped).toBe(false); // still giving a slow disconnect its chance
+      await jest.advanceTimersByTimeAsync(1);
+      await stopping;
+
+      expect(consumer.disconnect).toHaveBeenCalledTimes(2);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('did not disconnect'),
+      );
     });
   });
 
