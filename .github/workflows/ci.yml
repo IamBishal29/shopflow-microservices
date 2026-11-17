@@ -31,3 +31,9 @@ jobs:
       - run: pnpm test
       - run: pnpm test:e2e
       - run: pnpm build
+      # Catches broken YAML anchors, bad depends_on targets and missing required variables.
+      # Placeholder secret: config only resolves the file, nothing runs with it.
+      - name: docker compose config
+        run: docker compose config --quiet
+        env:
+          JWT_SECRET: ci-placeholder-not-a-real-secret-0000
