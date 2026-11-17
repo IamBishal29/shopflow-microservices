@@ -1,0 +1,71 @@
+# Non-secret settings; secrets (DB URL with password) come from the generated Secret.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: order-service
+data:
+  ORDER_SERVICE_PORT: '3001'
+  KAFKA_BROKERS: shopflow-kafka-bootstrap:9092 # Strimzi bootstrap Service (#25)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: order-service }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: order-service }
+    spec:
+      automountServiceAccountToken: false # the app never calls the Kubernetes API
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000 # the image's `node` user
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: order-service
+          image: shopflow/order-service # tag set in kustomization.yaml
+          imagePullPolicy: IfNotPresent # loaded with `kind load`, never pulled
+          ports:
+            - { name: http, containerPort: 3001 }
+          envFrom:
+            - configMapRef: { name: order-service }
+            - secretRef: { name: order-service }
+          # Liveness: is the process stuck? Failing restarts the container, so it must not
+          # depend on Postgres/Kafka (an outage would restart-loop every pod).
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          # Readiness: can it serve right now (DB reachable)? Failing only removes the pod
+          # from the Service endpoints; no restart.
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+          # Requests: what the scheduler reserves (idle RSS ~130 MiB). Limits: memory over
+          # the limit = OOMKill; CPU over the limit = throttling, not a kill.
+          resources:
+            requests: { cpu: 50m, memory: 160Mi }
+            limits: { cpu: 500m, memory: 384Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: tmp, emptyDir: {} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+spec:
+  selector: { app.kubernetes.io/name: order-service }
+  ports:
+    - { name: http, port: 3001, targetPort: http }
