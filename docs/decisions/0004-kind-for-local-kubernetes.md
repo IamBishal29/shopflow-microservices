@@ -17,3 +17,5 @@ kind (Kubernetes in Docker).
 - Fast to create and destroy, runs inside Docker Desktop, and the same tool works in CI.
 - Ingress and local images need extra steps (`kind load docker-image`, ingress-nginx
   manifest), which we document.
+- Update (ADR 0007): ingress-nginx was archived in March 2026; the edge is Gateway API with
+  Envoy Gateway instead.
